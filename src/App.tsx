@@ -4,35 +4,42 @@ import HowItWorks from './pages/HowItWorks'
 import Explorer from './pages/Explorer'
 import ModelLab from './pages/ModelLab'
 import Notes from './pages/Notes'
+import Search from './pages/Search'
+import Filing from './pages/Filing'
 
 const pages = [
   { id: 'overview', label: 'Overview', el: Overview },
+  { id: 'search', label: 'Search filings', el: Search },
   { id: 'how', label: 'How it works', el: HowItWorks },
-  { id: 'results', label: 'Results explorer', el: Explorer },
+  { id: 'results', label: 'Test results', el: Explorer },
   { id: 'models', label: 'Why this model', el: ModelLab },
   { id: 'notes', label: 'Model notes', el: Notes },
 ] as const
 
-type PageId = (typeof pages)[number]['id']
+type Route = { page: string; cik?: string; accession?: string }
 
-const readHash = (): PageId => {
-  const h = window.location.hash.replace('#/', '').split('/')[0]
-  return (pages.find((p) => p.id === h)?.id ?? 'overview') as PageId
+const readRoute = (): Route => {
+  const parts = window.location.hash.replace('#/', '').split('/')
+  if (parts[0] === 'filing' && /^\d+$/.test(parts[1] ?? '') && /^\d{10}-\d{2}-\d{6}$/.test(parts[2] ?? '')) {
+    return { page: 'filing', cik: parts[1], accession: parts[2] }
+  }
+  return { page: pages.find((p) => p.id === parts[0])?.id ?? 'overview' }
 }
 
 export default function App() {
-  const [page, setPage] = useState<PageId>(readHash)
+  const [route, setRoute] = useState<Route>(readRoute)
 
   useEffect(() => {
     const on = () => {
-      setPage(readHash())
+      setRoute(readRoute())
       window.scrollTo({ top: 0 })
     }
     window.addEventListener('hashchange', on)
     return () => window.removeEventListener('hashchange', on)
   }, [])
 
-  const Current = pages.find((p) => p.id === page)!.el
+  const active = route.page === 'filing' ? 'search' : route.page
+  const Current = pages.find((p) => p.id === route.page)?.el
 
   return (
     <>
@@ -52,7 +59,7 @@ export default function App() {
           </a>
           <nav aria-label="Main">
             {pages.map((p) => (
-              <a key={p.id} href={`#/${p.id}`} className={p.id === page ? 'active' : ''} aria-current={p.id === page ? 'page' : undefined}>
+              <a key={p.id} href={`#/${p.id}`} className={p.id === active ? 'active' : ''} aria-current={p.id === active ? 'page' : undefined}>
                 {p.label}
               </a>
             ))}
@@ -60,11 +67,11 @@ export default function App() {
         </div>
       </header>
       <main className="container">
-        <Current />
+        {route.page === 'filing' ? <Filing key={route.accession} cik={route.cik!} accession={route.accession!} /> : Current && <Current />}
       </main>
       <footer className="footer">
         <div className="container">
-          Built from the project’s real test results. Accuracy is measured against an independent answer key produced by a separate large AI model, not hand-checked by people.
+          Search results come live from the SEC’s public EDGAR database. Accuracy figures are measured against an independent answer key produced by a separate large AI model, not hand-checked by people.
         </div>
       </footer>
     </>
