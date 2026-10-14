@@ -2,7 +2,7 @@
 
 A dashboard that shows how an AI system reads SEC **8-K filings** and detects when a company's **CEO is appointed or resigns**. It is written so a non-technical person can follow what is happening, and it also keeps a full reference of every model built and tested.
 
-> **Model files are not in this repository.** Trained weights, training data, checkpoints and the training pipeline live in a separate private project. This repo contains only the front-end and the results data it displays.
+> **Model files are not in this repository.** Trained weights, training data and checkpoints live in a separate private project and a private Hugging Face model repo. This repo contains the front-end, the serverless API, the model-service code (no weights) and the results data it displays.
 
 ## What the UI shows
 
