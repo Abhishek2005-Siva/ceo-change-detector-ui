@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, modelHealth } from '../api'
-import { coldEstimate, markReady, readyUntil, recordCold } from '../modelState'
+import { clearStarting, coldEstimate, getStartingAt, markReady, markStarting, readyUntil, recordCold } from '../modelState'
 import { fmtSecs } from '../hooks'
 
 type State = 'off' | 'starting' | 'on' | 'error' | 'missing'
 
 export default function ModelPower() {
-  const [state, setState] = useState<State>(() => (readyUntil() > Date.now() ? 'on' : 'off'))
+  const [state, setState] = useState<State>(() => (getStartingAt() !== null ? 'starting' : readyUntil() > Date.now() ? 'on' : 'off'))
   const [secs, setSecs] = useState(0)
   const [msg, setMsg] = useState('')
   const stop = useRef(false)
@@ -18,16 +18,22 @@ export default function ModelPower() {
       setState((s) => (s === 'on' && left <= 0 ? 'off' : s === 'off' && left > 0 ? 'on' : s))
     }
     const id = window.setInterval(tick, 2000)
+    const onStarting = () => setState((s) => (s === 'on' ? s : 'starting'))
     window.addEventListener('model-ready', tick)
+    window.addEventListener('model-starting', onStarting)
     return () => {
       window.clearInterval(id)
       window.removeEventListener('model-ready', tick)
+      window.removeEventListener('model-starting', onStarting)
     }
   }, [])
 
   useEffect(() => {
     if (state !== 'starting') return
-    const id = window.setInterval(() => setSecs((s) => s + 1), 1000)
+    const id = window.setInterval(() => {
+      const t = getStartingAt()
+      setSecs(t === null ? 0 : Math.round((performance.now() - t) / 1000))
+    }, 500)
     return () => window.clearInterval(id)
   }, [state])
 
@@ -35,7 +41,8 @@ export default function ModelPower() {
 
   const turnOn = useCallback(async () => {
     stop.current = false
-    const t0 = performance.now()
+    markStarting()
+    const t0 = getStartingAt() ?? performance.now()
     setState('starting')
     setSecs(0)
     setMsg('')
@@ -49,6 +56,7 @@ export default function ModelPower() {
           return
         }
         if (h.error) {
+          clearStarting()
           setMsg(h.error)
           setState('error')
           return
@@ -62,6 +70,7 @@ export default function ModelPower() {
       await new Promise((r) => setTimeout(r, 2000))
     }
     if (!stop.current) {
+      clearStarting()
       setMsg('The model did not start in time.')
       setState('error')
     }

@@ -3,7 +3,21 @@
 const KEY = 'modelReadyUntil'
 export const IDLE_MS = 170_000
 
+// Shared "the server is starting" flag, so the header button and the filing page agree.
+let startingAt: number | null = null
+export const getStartingAt = () => startingAt
+export const markStarting = () => {
+  if (startingAt === null) startingAt = performance.now()
+  window.dispatchEvent(new Event('model-starting'))
+}
+
+export const clearStarting = () => {
+  startingAt = null
+  window.dispatchEvent(new Event('model-ready'))
+}
+
 export const markReady = () => {
+  startingAt = null
   try {
     localStorage.setItem(KEY, String(Date.now() + IDLE_MS))
   } catch { /* storage unavailable */ }

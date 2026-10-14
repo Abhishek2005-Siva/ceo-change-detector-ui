@@ -3,7 +3,7 @@ import { ApiError, pollJob, startAnalysis } from '../api'
 import WaitLoader from '../components/WaitLoader'
 import { useNow } from '../hooks'
 import Highlight from '../components/Highlight'
-import { coldEstimate, markReady, recordCold } from '../modelState'
+import { clearStarting, coldEstimate, markReady, markStarting, recordCold } from '../modelState'
 import { memory } from '../searchState'
 import type { AnalysisResult, Extraction, JobStatus } from '../types'
 import { fmtDate, pct } from '../utils'
@@ -184,10 +184,12 @@ export default function Filing({ cik, accession }: { cik: string; accession: str
             wakeT0 = performance.now()
             setWakeStart(wakeT0)
             setWasAsleep(true)
+            markStarting()
           }
           timer = window.setTimeout(() => void start(attempt + 1), 2000)
           return
         }
+        clearStarting()
         setErr({ code, message: e instanceof Error ? e.message : 'Could not start' })
       }
     }
