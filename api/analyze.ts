@@ -31,8 +31,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(r.status).json(r.ok ? body : { error: 'model_unavailable', message: body.detail || 'The model service is not ready.' })
     }
     if (one(req.query.health)) {
-      const r = await call('/health')
-      return res.status(r.ok ? 200 : 502).json(await r.json().catch(() => ({ ok: false })))
+      // Pinging a sleeping service starts it. Don't hold the request open while it boots:
+      // answer "waking" after a few seconds and let the browser ask again.
+      try {
+        const r = await call('/health', { signal: AbortSignal.timeout(8000) })
+        return res.status(200).json(await r.json().catch(() => ({ ok: false, loading: true })))
+      } catch {
+        return res.status(200).json({ ok: false, loading: true, waking: true })
+      }
     }
     const job = one(req.query.job)
     if (!/^[a-f0-9]{6,32}$/.test(job)) return res.status(400).json({ error: 'bad_request', message: 'Missing job id.' })

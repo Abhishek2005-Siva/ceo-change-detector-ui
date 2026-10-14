@@ -49,3 +49,18 @@ export async function startAnalysis(cik: string, accession: string): Promise<str
 export async function pollJob(id: string): Promise<JobStatus> {
   return json(await fetch(`/api/analyze?job=${id}`))
 }
+
+export interface ModelHealth {
+  ok: boolean
+  loading?: boolean
+  waking?: boolean
+  error?: string | null
+}
+
+/** Asks the model service if it is ready. Asking also wakes it if it is asleep. */
+export async function modelHealth(): Promise<ModelHealth> {
+  const r = await fetch('/api/analyze?health=1')
+  const body = await r.json().catch(() => ({}))
+  if (r.status === 503 && body.error === 'not_configured') throw new ApiError('not_configured', body.message)
+  return body as ModelHealth
+}

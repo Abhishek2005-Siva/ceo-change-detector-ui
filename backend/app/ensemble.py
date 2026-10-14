@@ -66,7 +66,7 @@ class Ensemble:
     def reader_names(self) -> List[str]:
         return [r[0] for r in self.readers]
 
-    def _probs(self, sentences: List[str], tok, model) -> List[List[float]]:
+    def _probs(self, sentences: List[str], tok, model, on_batch: Optional[Callable[[int], None]] = None) -> List[List[float]]:
         out: List[List[float]] = []
         for i in range(0, len(sentences), BATCH):
             batch = sentences[i : i + BATCH]
@@ -75,15 +75,24 @@ class Ensemble:
             with torch.no_grad():
                 logits = model(**enc).logits
             out.extend(torch.softmax(logits, dim=-1).tolist())
+            if on_batch:
+                on_batch(len(batch))
         return out
 
-    def analyze(self, sentences: List[str], on_reader_done: Optional[Callable[[int, int], None]] = None) -> Dict:
+    def analyze(self, sentences: List[str], on_progress: Optional[Callable[[int, int, int], None]] = None) -> Dict:
+        """on_progress(units_done, units_total, reader_index) fires after every batch; one unit = one sentence read by one reader."""
         per_reader = []
+        total = len(sentences) * len(self.readers)
+        done = 0
         for idx, (name, tok, model) in enumerate(self.readers):
-            probs = self._probs(sentences, tok, model)
-            per_reader.append(probs)
-            if on_reader_done:
-                on_reader_done(idx + 1, len(self.readers))
+
+            def on_batch(n: int, idx: int = idx) -> None:
+                nonlocal done
+                done += n
+                if on_progress:
+                    on_progress(done, total, idx)
+
+            per_reader.append(self._probs(sentences, tok, model, on_batch))
 
         # sentence-level view: what each reader thought of each sentence
         sent_rows = []

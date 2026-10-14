@@ -318,3 +318,30 @@ td.empty { text-align: center; }
 
 @media (max-width: 960px) { .sform-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) { .sform-grid { grid-template-columns: 1fr; } .field.wide { grid-column: auto; } .facts div { grid-template-columns: 1fr; } }
+
+/* model power button */
+.power-btn, .power { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 8px 14px; font: inherit; font-size: .88rem; font-weight: 650; white-space: nowrap; }
+.power-btn { border: 1px solid var(--primary); background: var(--primary-soft); color: var(--primary); cursor: pointer; }
+.power-btn:hover { background: var(--primary); color: #fff; }
+@media (prefers-color-scheme: dark) { .power-btn:hover { color: #0b1020; } }
+.power-btn.error { border-color: var(--red); background: var(--red-soft); color: var(--red); }
+.power { border: 1px solid var(--border); }
+.power small { font-weight: 400; color: var(--muted); font-size: .74rem; }
+.power-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+.power.on { background: var(--green-soft); color: var(--green); border-color: transparent; }
+.power.on .power-dot { background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+.power.starting { background: var(--amber-soft); color: var(--amber); border-color: transparent; }
+.power.starting .power-dot { background: var(--amber); animation: pulse 1.2s ease-in-out infinite; }
+.power.error { color: var(--red); background: var(--red-soft); border-color: transparent; }
+@media (max-width: 960px) { .power small { display: none; } }
+
+/* live wait loader */
+.wait { max-width: 660px; margin-top: 20px; }
+.wait-top { display: flex; align-items: center; gap: 18px; margin-bottom: 14px; }
+.wait-pct { font-size: 3rem; font-weight: 750; letter-spacing: -0.03em; color: var(--primary); line-height: 1; font-variant-numeric: tabular-nums; min-width: 2.4ch; }
+.wait-pct small { font-size: 1.2rem; margin-left: 2px; }
+.wait-eta { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wait-detail { margin: 10px 0 4px; font-size: .92rem; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 1.4em; }
+.wait .psteps { margin: 14px 0; }
+.wait-foot { margin: 0; padding-top: 12px; border-top: 1px solid var(--border); }
+.meter.big i { background: linear-gradient(90deg, var(--primary), color-mix(in srgb, var(--primary) 60%, var(--violet))); transition: width .35s ease-out; }

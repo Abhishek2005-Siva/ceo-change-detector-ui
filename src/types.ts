@@ -106,6 +106,10 @@ export interface JobStatus {
   progress: number
   sentenceCount?: number
   readersDone?: number
+  unitsDone?: number
+  unitsTotal?: number
+  elapsed?: number
+  etaSeconds?: number
   filing?: AnalysisResult['filing']
   result?: AnalysisResult
   error?: string

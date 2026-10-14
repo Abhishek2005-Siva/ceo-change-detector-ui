@@ -53,6 +53,36 @@ class JobRequest(BaseModel):
     accession: str = Field(pattern=r"^\d{10}-\d{2}-\d{6}$")
 
 
+EST_PER_UNIT = 0.33  # seconds per (sentence x reader) on the CPU container; refined live from real timings
+
+
+def _view(job: dict) -> dict:
+    """Job state for the browser, with live elapsed time and a remaining-time estimate."""
+    with _lock:
+        d = dict(job)
+    now = time.time()
+    end = d.get("t_end")
+    d["elapsed"] = round((end or now) - d["t0"], 1)
+    stage = d["stage"]
+    if stage in ("done", "error"):
+        eta = 0.0
+    elif stage == "reading" and d.get("unitsTotal"):
+        done, total = d.get("unitsDone", 0), d["unitsTotal"]
+        spent = now - d["readStart"]
+        rate = spent / done if done > 0 and spent > 1.5 else EST_PER_UNIT
+        eta = max(0.0, (total - done) * rate)
+    elif stage == "splitting" and d.get("unitsTotal"):
+        eta = d["unitsTotal"] * EST_PER_UNIT
+    elif stage == "locating":
+        eta = 14.0
+    else:
+        eta = 20.0
+    d["etaSeconds"] = round(eta, 1)
+    for k in ("t0", "t_end", "readStart"):
+        d.pop(k, None)
+    return d
+
+
 def _set(job: dict, **kw) -> None:
     with _lock:
         job.update(kw)
@@ -64,7 +94,7 @@ def _run(job: dict, cik: str, accession: str) -> None:
         _set(job, stage="fetching", progress=0.05)
         text, meta = fetch_filing(cik, accession)
         if text is None:
-            _set(job, stage="error", error="The SEC did not return this filing (not found or temporarily unavailable).")
+            _set(job, stage="error", t_end=time.time(), error="The SEC did not return this filing (not found or temporarily unavailable).")
             return
         filing = {
             "cik": cik,
@@ -79,7 +109,7 @@ def _run(job: dict, cik: str, accession: str) -> None:
         _set(job, stage="locating", progress=0.2, filing=filing)
         section = find_item_502_section(text)
         if section is None:
-            _set(job, stage="done", progress=1.0, result={
+            _set(job, stage="done", progress=1.0, t_end=time.time(), result={
                 "filing": filing, "item502Found": False, "section": "", "sentences": [],
                 "appointed": {"found": False}, "resigned": {"found": False},
                 "seconds": round(time.time() - t0, 1),
@@ -87,13 +117,15 @@ def _run(job: dict, cik: str, accession: str) -> None:
             return
         _set(job, stage="splitting", progress=0.3)
         sentences = split_sentences(section)
-        _set(job, stage="reading", progress=0.35, sentenceCount=len(sentences), readersDone=0)
+        total_units = max(1, len(sentences) * 3)
+        _set(job, stage="splitting", progress=0.3, sentenceCount=len(sentences), unitsTotal=total_units, unitsDone=0)
+        _set(job, stage="reading", progress=0.35, readStart=time.time(), readersDone=0)
         ens = _model["ensemble"]
 
-        def on_done(done: int, total: int) -> None:
-            _set(job, readersDone=done, progress=0.35 + 0.6 * done / total)
+        def on_progress(done: int, total: int, reader_idx: int) -> None:
+            _set(job, unitsDone=done, readersDone=reader_idx, progress=0.35 + 0.6 * done / total)
 
-        out = ens.analyze(sentences, on_done)
+        out = ens.analyze(sentences, on_progress)
         result = {
             "filing": filing,
             "item502Found": True,
@@ -103,9 +135,9 @@ def _run(job: dict, cik: str, accession: str) -> None:
             **out,
         }
         _cache[f"{cik}/{accession}"] = result
-        _set(job, stage="done", progress=1.0, result=result)
+        _set(job, stage="done", progress=1.0, result=result, t_end=time.time())
     except Exception as exc:
-        _set(job, stage="error", error=f"{type(exc).__name__}: {exc}")
+        _set(job, stage="error", t_end=time.time(), error=f"{type(exc).__name__}: {exc}")
 
 
 @app.get("/health")
@@ -124,10 +156,10 @@ def create_job(req: JobRequest) -> dict:
         raise HTTPException(503, "The model is still loading" if _model["loading"] else f"Model failed to load: {_model['error']}")
     key = f"{req.cik}/{req.accession}"
     job_id = uuid.uuid4().hex[:12]
-    job = {"id": job_id, "stage": "queued", "progress": 0.0}
+    job = {"id": job_id, "stage": "queued", "progress": 0.0, "t0": time.time()}
     _jobs[job_id] = job
     if key in _cache:
-        _set(job, stage="done", progress=1.0, result=_cache[key])
+        _set(job, stage="done", progress=1.0, result=_cache[key], t_end=time.time())
     else:
         _pool.submit(_run, job, req.cik, req.accession)
     if len(_jobs) > 200:
@@ -141,5 +173,4 @@ def get_job(job_id: str) -> dict:
     job: Optional[dict] = _jobs.get(job_id)
     if job is None:
         raise HTTPException(404, "Unknown job")
-    with _lock:
-        return dict(job)
+    return _view(job)

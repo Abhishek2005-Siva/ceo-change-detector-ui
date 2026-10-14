@@ -6,6 +6,7 @@ import ModelLab from './pages/ModelLab'
 import Notes from './pages/Notes'
 import Search from './pages/Search'
 import Filing from './pages/Filing'
+import ModelPower from './components/ModelPower'
 
 const pages = [
   { id: 'overview', label: 'Overview', el: Overview },
@@ -64,6 +65,7 @@ export default function App() {
               </a>
             ))}
           </nav>
+          <ModelPower />
         </div>
       </header>
       <main className="container">

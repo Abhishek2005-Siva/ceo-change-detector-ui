@@ -1,46 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, pollJob, startAnalysis } from '../api'
+import WaitLoader from '../components/WaitLoader'
+import { useNow } from '../hooks'
 import Highlight from '../components/Highlight'
+import { coldEstimate, markReady, recordCold } from '../modelState'
 import { memory } from '../searchState'
 import type { AnalysisResult, Extraction, JobStatus } from '../types'
 import { fmtDate, pct } from '../utils'
-
-const STEPS = [
-  ['fetching', 'Downloading the filing from the SEC'],
-  ['locating', 'Finding the leadership section (Item 5.02)'],
-  ['splitting', 'Splitting it into sentences'],
-  ['reading', 'Three AI readers read every sentence'],
-] as const
-
-const order = ['queued', 'fetching', 'locating', 'splitting', 'reading', 'done']
-
-function Progress({ job, waking }: { job: JobStatus | null; waking: boolean }) {
-  const idx = job ? order.indexOf(job.stage) : 0
-  return (
-    <div className="card progress-card" role="status" aria-live="polite">
-      <h3>{waking && !job ? 'Waking up the AI model…' : 'Analyzing this filing…'}</h3>
-      {waking && !job && <p className="muted small">The model sleeps when nobody is using it to stay free. Starting it takes about a minute; your filing will begin automatically.</p>}
-      <ol className="psteps">
-        {STEPS.map(([id, label], i) => {
-          const state = idx > i + 1 ? 'done' : idx === i + 1 ? 'active' : 'todo'
-          return (
-            <li key={id} className={state}>
-              <span className="pdot">{state === 'done' ? '✓' : i + 1}</span>
-              <span>
-                {label}
-                {id === 'reading' && state === 'active' && job?.sentenceCount !== undefined && (
-                  <small className="block muted">{job.sentenceCount} sentences · reader {Math.min((job.readersDone ?? 0) + 1, 3)} of 3</small>
-                )}
-              </span>
-            </li>
-          )
-        })}
-      </ol>
-      <div className="meter big"><i style={{ width: `${Math.round((job?.progress ?? 0.02) * 100)}%` }} /></div>
-      <p className="muted small">The first filing after a quiet period can take a minute while the model service wakes up. Usually it takes 10–60 seconds.</p>
-    </div>
-  )
-}
 
 function Panel({ kind, ex }: { kind: 'appointed' | 'resigned'; ex: Extraction }) {
   const title = kind === 'appointed' ? 'New CEO named' : 'CEO leaving'
@@ -176,7 +142,9 @@ export default function Filing({ cik, accession }: { cik: string; accession: str
   const [job, setJob] = useState<JobStatus | null>(null)
   const [err, setErr] = useState<{ code: string; message: string } | null>(null)
   const cancelled = useRef(false)
-  const [waking, setWaking] = useState(false)
+  const [wakeStart, setWakeStart] = useState<number | null>(null)
+  const [wasAsleep, setWasAsleep] = useState(false)
+  const now = useNow(250)
 
   const sel = memory.selected?.accession === accession ? memory.selected : null
   const meta = job?.result?.filing ?? job?.filing
@@ -185,31 +153,39 @@ export default function Filing({ cik, accession }: { cik: string; accession: str
     cancelled.current = false
     setJob(null)
     setErr(null)
-    setWaking(false)
+    setWakeStart(null)
+    setWasAsleep(false)
     let timer: number
     const tick = async (id: string) => {
       try {
         const j = await pollJob(id)
         if (cancelled.current) return
         setJob(j)
+        markReady()
         if (j.stage === 'error') return setErr({ code: 'job', message: j.error ?? 'The analysis failed.' })
-        if (j.stage !== 'done') timer = window.setTimeout(() => void tick(id), 1500)
+        if (j.stage !== 'done') timer = window.setTimeout(() => void tick(id), 1000)
       } catch (e) {
         if (cancelled.current) return
         setErr({ code: e instanceof ApiError ? e.code : 'error', message: e instanceof Error ? e.message : 'Lost connection' })
       }
     }
     // The model service sleeps when idle; keep retrying while it wakes up (up to ~4 minutes).
+    let wakeT0: number | null = null
     const start = async (attempt: number): Promise<void> => {
       try {
         const id = await startAnalysis(cik, accession)
+        if (wakeT0 !== null) recordCold((performance.now() - wakeT0) / 1000)
         if (!cancelled.current) void tick(id)
       } catch (e) {
         if (cancelled.current) return
         const code = e instanceof ApiError ? e.code : 'error'
         if ((code === 'model_unavailable' || code === 'model_unreachable') && attempt < 60) {
-          setWaking(true)
-          timer = window.setTimeout(() => void start(attempt + 1), 4000)
+          if (wakeT0 === null) {
+            wakeT0 = performance.now()
+            setWakeStart(wakeT0)
+            setWasAsleep(true)
+          }
+          timer = window.setTimeout(() => void start(attempt + 1), 2000)
           return
         }
         setErr({ code, message: e instanceof Error ? e.message : 'Could not start' })
@@ -249,7 +225,7 @@ export default function Filing({ cik, accession }: { cik: string; accession: str
       ) : job?.stage === 'done' && job.result ? (
         <Result r={job.result} />
       ) : (
-        <Progress job={job} waking={waking} />
+        <WaitLoader job={job} waking={!job && wakeStart !== null ? { elapsed: (now - wakeStart) / 1000, estimate: coldEstimate() } : null} wasAsleep={wasAsleep} />
       )}
     </>
   )
