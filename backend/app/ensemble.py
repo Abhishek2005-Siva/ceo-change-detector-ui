@@ -12,7 +12,11 @@ from huggingface_hub import snapshot_download
 from peft import PeftModel
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
+import re
+
 from .item502 import regex_extract_ceo_event
+
+_HONORIFIC_SURNAME = re.compile(r"\b(?:Mr|Ms|Mrs|Dr)\.\s+([A-Z][A-Za-z'\-]+)")
 
 LABELS = ["NONE", "APPOINTED", "RESIGNED"]
 ID2LABEL = {i: l for i, l in enumerate(LABELS)}
@@ -30,16 +34,21 @@ READER_NAMES = {
 
 class Ensemble:
     def __init__(self) -> None:
-        torch.set_num_threads(max(1, (os.cpu_count() or 2)))
+        torch.set_num_threads(int(os.getenv("TORCH_THREADS", "4")))
         repo = os.environ["MODEL_REPO"]
         local = snapshot_download(repo_id=repo, token=os.getenv("HF_TOKEN"))
+        order = list(READER_NAMES)
         dirs = sorted(
-            os.path.join(local, d)
-            for d in os.listdir(local)
-            if os.path.exists(os.path.join(local, d, "adapter_config.json"))
+            (
+                os.path.join(local, d)
+                for d in os.listdir(local)
+                if os.path.exists(os.path.join(local, d, "adapter_config.json"))
+            ),
+            key=lambda p: order.index(os.path.basename(p)) if os.path.basename(p) in order else 99,
         )
         if len(dirs) != 3:
             raise RuntimeError(f"Expected 3 reader folders in the model repo, found {len(dirs)}")
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.readers = []
         for d in dirs:
             with open(os.path.join(d, "adapter_config.json")) as f:
@@ -49,7 +58,7 @@ class Ensemble:
                 base, num_labels=len(LABELS), id2label=ID2LABEL, label2id=LABEL2ID
             )
             model = PeftModel.from_pretrained(model, d)
-            model.eval()
+            model.eval().to(self.device)
             name = READER_NAMES.get(os.path.basename(d), os.path.basename(d))
             self.readers.append((name, tok, model))
 
@@ -62,6 +71,7 @@ class Ensemble:
         for i in range(0, len(sentences), BATCH):
             batch = sentences[i : i + BATCH]
             enc = tok(batch, truncation=True, max_length=MAX_LENGTH, padding=True, return_tensors="pt")
+            enc = {k: v.to(self.device) for k, v in enc.items()}
             with torch.no_grad():
                 logits = model(**enc).logits
             out.extend(torch.softmax(logits, dim=-1).tolist())
@@ -118,6 +128,10 @@ class Ensemble:
                         if ev and ev[1] == kind:
                             name = ev[0]
                             break
+            if best and not name:
+                m = _HONORIFIC_SURNAME.search(sentence)
+                if m:
+                    name = m.group(0)  # e.g. "Mr. Janik": the filing only gives the surname here
             result[key] = {
                 "found": flagged,
                 "name": name,

@@ -1,12 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { one } from './_sec.js'
 
-// Thin, authenticated proxy to the private model service (a Hugging Face Space).
+// Thin, authenticated proxy to the private model service (hosted on Modal).
 // POST  {cik, accession}  -> {id}        start analysing a filing
 // GET   ?job=<id>         -> job status/result
 // GET   ?health=1         -> model readiness
-const SPACE = (process.env.SPACE_URL || '').replace(/\/$/, '')
-const TOKEN = process.env.HF_TOKEN || ''
+const SPACE = (process.env.MODEL_URL || '').replace(/\/$/, '')
+const TOKEN = process.env.MODEL_API_KEY || ''
 
 async function call(path: string, init?: RequestInit) {
   return fetch(`${SPACE}${path}`, {

@@ -14,11 +14,12 @@ const STEPS = [
 
 const order = ['queued', 'fetching', 'locating', 'splitting', 'reading', 'done']
 
-function Progress({ job }: { job: JobStatus | null }) {
+function Progress({ job, waking }: { job: JobStatus | null; waking: boolean }) {
   const idx = job ? order.indexOf(job.stage) : 0
   return (
     <div className="card progress-card" role="status" aria-live="polite">
-      <h3>Analyzing this filing…</h3>
+      <h3>{waking && !job ? 'Waking up the AI model…' : 'Analyzing this filing…'}</h3>
+      {waking && !job && <p className="muted small">The model sleeps when nobody is using it to stay free. Starting it takes about a minute; your filing will begin automatically.</p>}
       <ol className="psteps">
         {STEPS.map(([id, label], i) => {
           const state = idx > i + 1 ? 'done' : idx === i + 1 ? 'active' : 'todo'
@@ -175,6 +176,7 @@ export default function Filing({ cik, accession }: { cik: string; accession: str
   const [job, setJob] = useState<JobStatus | null>(null)
   const [err, setErr] = useState<{ code: string; message: string } | null>(null)
   const cancelled = useRef(false)
+  const [waking, setWaking] = useState(false)
 
   const sel = memory.selected?.accession === accession ? memory.selected : null
   const meta = job?.result?.filing ?? job?.filing
@@ -183,6 +185,7 @@ export default function Filing({ cik, accession }: { cik: string; accession: str
     cancelled.current = false
     setJob(null)
     setErr(null)
+    setWaking(false)
     let timer: number
     const tick = async (id: string) => {
       try {
@@ -196,9 +199,23 @@ export default function Filing({ cik, accession }: { cik: string; accession: str
         setErr({ code: e instanceof ApiError ? e.code : 'error', message: e instanceof Error ? e.message : 'Lost connection' })
       }
     }
-    startAnalysis(cik, accession)
-      .then((id) => !cancelled.current && void tick(id))
-      .catch((e) => !cancelled.current && setErr({ code: e instanceof ApiError ? e.code : 'error', message: e instanceof Error ? e.message : 'Could not start' }))
+    // The model service sleeps when idle; keep retrying while it wakes up (up to ~4 minutes).
+    const start = async (attempt: number): Promise<void> => {
+      try {
+        const id = await startAnalysis(cik, accession)
+        if (!cancelled.current) void tick(id)
+      } catch (e) {
+        if (cancelled.current) return
+        const code = e instanceof ApiError ? e.code : 'error'
+        if ((code === 'model_unavailable' || code === 'model_unreachable') && attempt < 60) {
+          setWaking(true)
+          timer = window.setTimeout(() => void start(attempt + 1), 4000)
+          return
+        }
+        setErr({ code, message: e instanceof Error ? e.message : 'Could not start' })
+      }
+    }
+    void start(0)
     return () => {
       cancelled.current = true
       window.clearTimeout(timer)
@@ -232,7 +249,7 @@ export default function Filing({ cik, accession }: { cik: string; accession: str
       ) : job?.stage === 'done' && job.result ? (
         <Result r={job.result} />
       ) : (
-        <Progress job={job} />
+        <Progress job={job} waking={waking} />
       )}
     </>
   )

@@ -10,13 +10,23 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from .item502 import find_item_502_section, split_sentences
+import re
+
+from .item502 import ITEM_HEADING_RE, find_item_502_section, split_sentences
 from .sec_fetch import fetch_filing, filing_txt_url
 
-app = FastAPI(title="Leadership Change Detector model service")
+API_KEY = os.getenv("API_KEY", "")
+
+
+def _auth(authorization: str = Header(default="")) -> None:
+    if API_KEY and authorization != f"Bearer {API_KEY}":
+        raise HTTPException(401, "Unauthorized")
+
+
+app = FastAPI(title="Leadership Change Detector model service", dependencies=[Depends(_auth)])
 _pool = ThreadPoolExecutor(max_workers=1)
 _jobs: Dict[str, dict] = {}
 _cache: Dict[str, dict] = {}
@@ -62,7 +72,7 @@ def _run(job: dict, cik: str, accession: str) -> None:
             "company": meta.company,
             "form": meta.form,
             "filed": meta.filed,
-            "items": meta.items,
+            "items": sorted({m.group(1) for m in ITEM_HEADING_RE.finditer(text)}),
             "url": filing_txt_url(cik, accession),
             "characters": len(text),
         }
