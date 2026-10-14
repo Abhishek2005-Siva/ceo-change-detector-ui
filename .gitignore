@@ -1,0 +1,21 @@
+node_modules
+dist
+.vercel
+.env
+.env.*
+*.log
+.DS_Store
+
+# Never publish model files or training artifacts
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+*.ckpt
+*.h5
+adapter_*
+models/
+checkpoints/
+ml/
+*.tsbuildinfo
