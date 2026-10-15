@@ -34,7 +34,7 @@ export const readyUntil = (): number => {
 
 // How long a cold start took last times, so the countdown gets more accurate with use.
 const COLD_KEY = 'modelColdSeconds'
-const DEFAULT_COLD = 25
+const DEFAULT_COLD = 15
 
 export const coldEstimate = (): number => {
   try {

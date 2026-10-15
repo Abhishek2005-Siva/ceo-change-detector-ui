@@ -98,6 +98,7 @@ export interface AnalysisResult {
   appointed: Extraction
   resigned: Extraction
   seconds: number
+  skippedModel?: string
 }
 
 export interface JobStatus {

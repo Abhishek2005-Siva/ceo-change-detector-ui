@@ -80,7 +80,7 @@ function Result({ r }: { r: AnalysisResult }) {
     <>
       <div className={`banner ${tone}`}>
         <b>{headline}</b>
-        <span>Analyzed in {r.seconds}s · {r.sentences.length} sentences read by 3 AI readers</span>
+        <span>Analyzed in {r.seconds}s{r.skippedModel ? '' : ` · ${r.sentences.length} sentences read by 3 AI readers`}</span>
       </div>
 
       {r.item502Found && (
@@ -90,7 +90,13 @@ function Result({ r }: { r: AnalysisResult }) {
         </div>
       )}
 
-      {r.item502Found && (
+      {r.skippedModel && (
+        <p className="explain good">
+          <b>Instant answer:</b> {r.skippedModel} The AI readers were not needed for this filing.
+        </p>
+      )}
+
+      {r.item502Found && !r.skippedModel && (
         <section>
           <h2>Everything the AI read</h2>
           <p className="muted">

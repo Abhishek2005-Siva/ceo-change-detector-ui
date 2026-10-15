@@ -19,6 +19,8 @@ from .item502 import ITEM_HEADING_RE, find_item_502_section, split_sentences
 from .sec_fetch import fetch_filing, filing_txt_url
 
 API_KEY = os.getenv("API_KEY", "")
+# A filing whose Item 5.02 text never mentions a CEO-type title cannot contain a CEO appointment or resignation.
+CEO_HINT = re.compile(r"chief\s+executive|\bCEO\b|principal\s+executive|president", re.IGNORECASE)
 
 
 def _auth(authorization: str = Header(default="")) -> None:
@@ -45,7 +47,9 @@ def _load() -> None:
         _model["loading"] = False
 
 
-threading.Thread(target=_load, daemon=True).start()
+# Normally load in the background at startup. The Modal memory-snapshot path loads synchronously instead (MODEL_AUTOLOAD=0).
+if os.getenv("MODEL_AUTOLOAD", "1") == "1":
+    threading.Thread(target=_load, daemon=True).start()
 
 
 class JobRequest(BaseModel):
@@ -53,7 +57,7 @@ class JobRequest(BaseModel):
     accession: str = Field(pattern=r"^\d{10}-\d{2}-\d{6}$")
 
 
-EST_PER_UNIT = 0.33  # seconds per (sentence x reader) on the CPU container; refined live from real timings
+EST_PER_UNIT = 0.06  # seconds per (sentence x reader) on the 8-core container; refined live from real timings
 
 
 def _view(job: dict) -> dict:
@@ -74,9 +78,9 @@ def _view(job: dict) -> dict:
     elif stage == "splitting" and d.get("unitsTotal"):
         eta = d["unitsTotal"] * EST_PER_UNIT
     elif stage == "locating":
-        eta = 14.0
+        eta = 4.0
     else:
-        eta = 20.0
+        eta = 6.0
     d["etaSeconds"] = round(eta, 1)
     for k in ("t0", "t_end", "readStart"):
         d.pop(k, None)
@@ -125,7 +129,16 @@ def _run(job: dict, cik: str, accession: str) -> None:
         def on_progress(done: int, total: int, reader_idx: int) -> None:
             _set(job, unitsDone=done, readersDone=reader_idx, progress=0.35 + 0.6 * done / total)
 
-        out = ens.analyze(sentences, on_progress)
+        gate_skips = CEO_HINT.search(section) is None
+        if gate_skips and os.getenv("CEO_GATE", "1") == "1":
+            out = {
+                "sentences": [],
+                "appointed": {"found": False},
+                "resigned": {"found": False},
+                "skippedModel": "This leadership section never mentions a CEO or president, so no CEO change is possible.",
+            }
+        else:
+            out = ens.analyze(sentences, on_progress)
         result = {
             "filing": filing,
             "item502Found": True,

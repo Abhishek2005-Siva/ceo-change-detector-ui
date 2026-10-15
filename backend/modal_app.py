@@ -25,17 +25,30 @@ image = (
 app = modal.App("leadership-change-detector", image=image)
 
 
-@app.function(
-    cpu=4.0,
-    memory=8192,
+@app.cls(
+    cpu=8.0,
+    memory=12288,
     secrets=[modal.Secret.from_name("ceo-detector-secrets")],
     max_containers=1,  # jobs live in this container's memory, so keep exactly one
     scaledown_window=180,
     timeout=1800,
+    enable_memory_snapshot=True,  # restore the loaded models from a snapshot => much faster cold starts
 )
 @modal.concurrent(max_inputs=32)
-@modal.asgi_app()
-def web():
-    from app.main import app as api  # the FastAPI instance
+class Service:
+    @modal.enter(snap=True)
+    def load_models(self):
+        import os
 
-    return api
+        os.environ["MODEL_AUTOLOAD"] = "0"
+        from app import main
+
+        main._load()  # blocks until the three readers are in memory; this state is what gets snapshotted
+        if main._model["error"]:
+            raise RuntimeError(main._model["error"])
+
+    @modal.asgi_app()
+    def web(self):
+        from app.main import app as api  # the FastAPI instance
+
+        return api

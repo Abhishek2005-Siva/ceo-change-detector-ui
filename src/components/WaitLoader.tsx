@@ -96,7 +96,7 @@ export default function WaitLoader({ job, waking, wasAsleep }: Props) {
         })}
       </ol>
       <p className="muted small wait-foot">
-        Typical total: about 20 seconds{wasAsleep ? `, plus about ${Math.round(waking?.estimate ?? 25)} seconds because the AI model was asleep` : ''}. The estimate corrects itself as the work progresses.
+        Most filings take 3–10 seconds{wasAsleep ? `, plus about ${Math.round(waking?.estimate ?? 15)} seconds because the AI model was asleep` : ''}. The estimate corrects itself as the work progresses.
       </p>
     </div>
   )
