@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { searchFilings, type SearchParams } from '../api'
+import BatchPanel from '../components/BatchPanel'
 import CompanyPicker from '../components/CompanyPicker'
 import { memory } from '../searchState'
 import type { Company, FilingRow, SearchResponse } from '../types'
@@ -51,6 +52,7 @@ export default function Search() {
   const [resp, setResp] = useState<SearchResponse | null>(saved?.response ?? null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
+  const [searchId, setSearchId] = useState(0)
 
   const run = useCallback(async (p: SearchParams, c: Company | null) => {
     setLoading(true)
@@ -59,6 +61,8 @@ export default function Search() {
       const r = await searchFilings({ ...p, cik: c?.cik ?? '' })
       setResp(r)
       memory.search = { params: p, company: c, response: r }
+      memory.batch = null
+      setSearchId((n) => n + 1)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Search failed')
     } finally {
@@ -155,6 +159,10 @@ export default function Search() {
       </form>
 
       {err && <p className="explain bad" role="alert">{err}</p>}
+
+      {resp && resp.filings.length > 0 && (
+        <BatchPanel key={searchId} filings={resp.filings} total={resp.total} params={memory.search?.params ?? params} company={memory.search?.company ?? company} />
+      )}
 
       {resp && (
         <section aria-live="polite">

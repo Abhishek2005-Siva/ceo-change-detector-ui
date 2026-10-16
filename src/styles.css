@@ -423,3 +423,32 @@ td.empty { text-align: center; }
 .person-event.k-appointed { border-left-color: var(--green); }
 .person-event.k-resigned { border-left-color: var(--violet); }
 .person-event .devent-head .kind { width: 24px; height: 24px; font-size: .95rem; }
+
+/* batch analysis + spreadsheet view */
+.batch { margin-top: 22px; }
+.batch-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.batch-head h2 { margin: 0 0 4px; font-size: 1.2rem; }
+.scope { border: 0; padding: 0; margin: 12px 0 0; display: grid; gap: 6px; }
+.scope label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.batch-progress { margin-top: 14px; }
+.sheet-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 16px 0 8px; }
+.sheet-bar input[type=search] { flex: 1; min-width: 180px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; }
+.sheet-stats { font-size: .92rem; color: var(--muted); }
+.sheet-stats b { color: var(--text); }
+.sheet-actions { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+.sheet-wrap { overflow: auto; max-height: 70vh; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.sheet { border-collapse: separate; border-spacing: 0; font-size: .82rem; min-width: 100%; font-variant-numeric: tabular-nums; }
+.sheet th, .sheet td { padding: 6px 10px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--surface); }
+.sheet thead th { position: sticky; top: 0; z-index: 3; background: var(--primary); color: #fff; font-weight: 650; white-space: nowrap; }
+@media (prefers-color-scheme: dark) { .sheet thead th { color: #0b1020; } }
+.sheet .rownum { position: sticky; left: 0; z-index: 2; background: var(--surface-2); color: var(--muted); text-align: right; min-width: 38px; width: 38px; }
+.sheet thead .rownum { z-index: 4; background: var(--primary); color: inherit; }
+.sheet .sticky { position: sticky; left: 38px; z-index: 2; min-width: 200px; box-shadow: 2px 0 0 var(--border); }
+.sheet thead .sticky { z-index: 4; }
+.sheet td.hit { background: var(--green-soft); color: var(--text); }
+.sheet td.num { text-align: right; }
+.sheet td.err { background: var(--red-soft); color: var(--red); }
+.sheet tbody tr:hover td { filter: brightness(1.06); }
+.th-btn { all: unset; cursor: pointer; font-weight: 650; }
+.th-btn:hover { text-decoration: underline; }
+.sheet .linklike { text-align: left; }

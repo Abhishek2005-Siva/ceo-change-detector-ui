@@ -33,7 +33,7 @@ def _auth(authorization: str = Header(default="")) -> None:
 
 app = FastAPI(title="Leadership Change Detector model service", dependencies=[Depends(_auth)])
 _activity = {"t": time.time()}  # last authenticated request; the Kaggle host shuts down when this gets old
-_pool = ThreadPoolExecutor(max_workers=1)
+_pool = ThreadPoolExecutor(max_workers=int(os.getenv("WORKERS", "3")))  # a few filings at a time (batch analysis)
 _jobs: Dict[str, dict] = {}
 _cache: Dict[str, dict] = {}
 _lock = threading.Lock()
