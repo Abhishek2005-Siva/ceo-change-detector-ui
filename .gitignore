@@ -21,3 +21,4 @@ ml/
 *.tsbuildinfo
 __pycache__/
 *.pyc
+kaggle/out/

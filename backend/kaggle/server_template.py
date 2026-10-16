@@ -1,0 +1,68 @@
+"""Kaggle GPU kernel that runs the FilingLens model service and exposes it through an ngrok tunnel.
+
+Built by build.sh (which fills the __PLACEHOLDERS__). Private kernel: it holds the API key and ngrok token.
+Adapters come from the private Kaggle dataset `filinglens-adapters`; base models download from the public hub.
+It stops by itself after RUN_HOURS, or earlier after IDLE_MINUTES without requests, so the session ends cleanly and saves GPU quota.
+"""
+import base64
+import glob
+import io
+import os
+import subprocess
+import sys
+import threading
+import time
+import zipfile
+
+APP_B64 = "__APP_B64__"
+os.environ["API_KEY"] = "__API_KEY__"
+os.environ["SEC_USER_AGENT"] = "__SEC_UA__"
+NGROK_TOKEN = "__NGROK_TOKEN__"
+NGROK_DOMAIN = "__NGROK_DOMAIN__"
+RUN_HOURS = float("__RUN_HOURS__")
+IDLE_MINUTES = float("__IDLE_MINUTES__")  # stop early when nobody has used the server for this long (saves GPU quota)
+
+subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-U", "peft", "torchao", "transformers", "fastapi", "uvicorn",
+                "pydantic", "beautifulsoup4", "lxml", "pyngrok", "sentencepiece"], check=False)
+
+zipfile.ZipFile(io.BytesIO(base64.b64decode(APP_B64))).extractall("/kaggle/working/svc")
+sys.path.insert(0, "/kaggle/working/svc")
+
+hit = glob.glob("/kaggle/input/**/robertalarge_seed7/adapter_config.json", recursive=True)
+if not hit:
+    raise SystemExit("adapter dataset not found under /kaggle/input")
+os.environ["MODEL_DIR"] = os.path.dirname(os.path.dirname(hit[0]))
+os.environ["USE_GPU"] = "1"
+os.environ["TORCH_THREADS"] = str(os.cpu_count() or 4)
+os.environ["HF_HUB_DISABLE_XET"] = "1"
+print("models:", os.environ["MODEL_DIR"], flush=True)
+
+import torch  # noqa: E402
+import uvicorn  # noqa: E402
+from pyngrok import conf, ngrok  # noqa: E402
+
+print(f"CUDA: {torch.cuda.is_available()} x{torch.cuda.device_count()}", flush=True)
+
+from app.main import app, start_prewarm  # noqa: E402  (importing starts loading the CEO ensemble in the background)
+
+conf.get_default().auth_token = NGROK_TOKEN
+tunnel = ngrok.connect(7860, bind_tls=True, domain=NGROK_DOMAIN)
+print("PUBLIC_URL", tunnel.public_url, flush=True)
+
+start_prewarm()
+server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=7860, log_level="warning"))
+threading.Thread(target=server.run, daemon=True).start()
+
+import app.main as _main  # noqa: E402
+
+t0 = time.time()
+reason = "time limit reached"
+while time.time() - t0 < RUN_HOURS * 3600:
+    time.sleep(60)
+    idle = (time.time() - _main._activity["t"]) / 60
+    if idle > IDLE_MINUTES and time.time() - t0 > 600:
+        reason = f"idle for {int(idle)} min"
+        break
+    if int(time.time() - t0) % 1800 < 60:
+        print(f"alive {int((time.time() - t0) / 60)} min, idle {int(idle)} min", flush=True)
+print(f"DONE_SERVER ({reason}; start the kernel again to continue)", flush=True)

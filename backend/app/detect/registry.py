@@ -41,7 +41,7 @@ def selftest_family(fam: Family) -> dict:
         for name, tok, model, n in fam.test_models():
             t = time.time()
             try:
-                enc = tok(["The Company announced a change on March 3, 2025."], truncation=True, max_length=64, return_tensors="pt")
+                enc = tok(["The Company announced a change on March 3, 2025."], truncation=True, max_length=64, return_tensors="pt").to(model.device)
                 with torch.inference_mode():
                     logits = model(**enc).logits
                 good = logits.shape[-1] == n and bool(torch.isfinite(logits).all())

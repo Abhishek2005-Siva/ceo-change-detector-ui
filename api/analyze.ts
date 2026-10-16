@@ -11,6 +11,10 @@ const TOKEN = process.env.MODEL_API_KEY || ''
 // Modal answers with plain text ("modal-http: workspace ... is disabled") when the host refuses to run the app.
 async function readJson(r: Response): Promise<{ body: any; hostError?: string }> {
   const text = await r.text()
+  // ngrok answers with its own error code when the tunnel is up but the model server behind it is not running.
+  if (r.headers.get('ngrok-error-code')) {
+    return { body: {}, hostError: 'The model server is not running right now. It is started on demand (Kaggle). Start it, wait a few minutes for the models to load, then try again.' }
+  }
   try {
     return { body: JSON.parse(text) }
   } catch {
@@ -28,7 +32,7 @@ async function readJson(r: Response): Promise<{ body: any; hostError?: string }>
 async function call(path: string, init?: RequestInit) {
   return fetch(`${SPACE}${path}`, {
     ...init,
-    headers: { ...(init?.headers || {}), Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    headers: { ...(init?.headers || {}), Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
   })
 }
 

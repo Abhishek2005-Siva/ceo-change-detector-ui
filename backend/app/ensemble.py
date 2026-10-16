@@ -19,6 +19,7 @@ from huggingface_hub import snapshot_download
 from peft import PeftModel
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
+from .devices import place
 from .item502 import regex_extract_ceo_event
 
 LABELS = ["NONE", "APPOINTED", "RESIGNED"]
@@ -45,8 +46,8 @@ class Reader:
 class Ensemble:
     def __init__(self) -> None:
         torch.set_num_threads(int(os.getenv("TORCH_THREADS", str(os.cpu_count() or 4))))
-        repo = os.environ["MODEL_REPO"]
-        local = snapshot_download(repo_id=repo, token=os.getenv("HF_TOKEN"))
+        repo = os.environ.get("MODEL_REPO", "")
+        local = os.environ.get("MODEL_DIR") or snapshot_download(repo_id=repo, token=os.getenv("HF_TOKEN"))
         order = list(READER_NAMES)
         dirs = sorted(
             (
@@ -68,6 +69,7 @@ class Ensemble:
             )
             model = PeftModel.from_pretrained(model, d).merge_and_unload().float()  # saved head weights are fp16; fp32 -> exact
             model.eval()
+            model = place(model)
             self.readers.append(Reader(READER_NAMES.get(os.path.basename(d), os.path.basename(d)), tok, model))
 
     @property
@@ -81,7 +83,7 @@ class Ensemble:
         order = sorted(range(len(sentences)), key=lambda i: len(sentences[i]))
         for i in range(0, len(order), BATCH):
             idx = order[i : i + BATCH]
-            enc = tok([sentences[j] for j in idx], truncation=True, max_length=MAX_LENGTH, padding=True, return_tensors="pt")
+            enc = tok([sentences[j] for j in idx], truncation=True, max_length=MAX_LENGTH, padding=True, return_tensors="pt").to(model.device)
             with torch.inference_mode():
                 probs = torch.softmax(model(**enc).logits, dim=-1).tolist()
             for j, p in zip(idx, probs):

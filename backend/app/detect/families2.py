@@ -29,7 +29,7 @@ def _softmax_probs(texts: List[str], tok, model, max_length: int, batch: int = 1
     order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
     for i in range(0, len(order), batch):
         idx = order[i : i + batch]
-        enc = tok([texts[j] for j in idx], truncation=True, max_length=max_length, padding=True, return_tensors="pt")
+        enc = tok([texts[j] for j in idx], truncation=True, max_length=max_length, padding=True, return_tensors="pt").to(model.device)
         with torch.inference_mode():
             p = torch.softmax(model(**enc).logits.float(), dim=-1).tolist()
         for j, row in zip(idx, p):

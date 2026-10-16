@@ -31,6 +31,13 @@ def _auth(authorization: str = Header(default="")) -> None:
 
 
 app = FastAPI(title="Leadership Change Detector model service", dependencies=[Depends(_auth)])
+_activity = {"t": time.time()}  # last request time; the Kaggle host uses it to shut down when idle
+
+
+@app.middleware("http")
+async def _touch(request, call_next):
+    _activity["t"] = time.time()
+    return await call_next(request)
 _pool = ThreadPoolExecutor(max_workers=1)
 _jobs: Dict[str, dict] = {}
 _cache: Dict[str, dict] = {}
@@ -200,7 +207,7 @@ def selftest() -> dict:
         for r in ens.readers:
             try:
                 t = time.time()
-                enc = r.tok(["The Company announced a change on March 3, 2025."], truncation=True, max_length=64, return_tensors="pt")
+                enc = r.tok(["The Company announced a change on March 3, 2025."], truncation=True, max_length=64, return_tensors="pt").to(r.model.device)
                 with torch.inference_mode():
                     logits = r.model(**enc).logits
                 good = logits.shape[-1] == 3 and bool(torch.isfinite(logits).all())

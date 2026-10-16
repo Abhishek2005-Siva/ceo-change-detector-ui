@@ -20,6 +20,7 @@ from huggingface_hub import snapshot_download
 from peft import PeftModel
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
+from ..devices import place
 from . import context as ctxmod
 from . import item401, item507, rules
 from . import items as items_mod
@@ -35,7 +36,7 @@ _root: Dict[str, str] = {}
 def _repo_root() -> str:
     with _load_lock:
         if "p" not in _root:
-            _root["p"] = snapshot_download(repo_id=os.environ["MODEL_REPO"], token=os.getenv("HF_TOKEN"), allow_patterns=["other/*"])
+            _root["p"] = os.environ.get("MODEL_DIR") or snapshot_download(repo_id=os.environ["MODEL_REPO"], token=os.getenv("HF_TOKEN"), allow_patterns=["other/*"])
         return _root["p"]
 
 
@@ -45,7 +46,7 @@ def _load(name: str, num_labels: int):
         base = json.load(f)["base_model_name_or_path"]
     tok = AutoTokenizer.from_pretrained(d)
     model = AutoModelForSequenceClassification.from_pretrained(base, num_labels=num_labels, problem_type="multi_label_classification", torch_dtype=torch.float32)
-    model = PeftModel.from_pretrained(model, d).merge_and_unload().float().eval()
+    model = place(PeftModel.from_pretrained(model, d).merge_and_unload().float().eval())
     labels_path = os.path.join(d, "labels.json")
     meta = json.load(open(labels_path)) if os.path.exists(labels_path) else {}
     return tok, model, meta
@@ -56,7 +57,7 @@ def _sigmoid_probs(texts: List[str], tok, model, max_length: int, batch: int = 1
     order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
     for i in range(0, len(order), batch):
         idx = order[i : i + batch]
-        enc = tok([texts[j] for j in idx], truncation=True, max_length=max_length, padding=True, return_tensors="pt")
+        enc = tok([texts[j] for j in idx], truncation=True, max_length=max_length, padding=True, return_tensors="pt").to(model.device)
         with torch.inference_mode():
             p = torch.sigmoid(model(**enc).logits.float()).tolist()
         for j, row in zip(idx, p):
