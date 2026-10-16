@@ -1,4 +1,3 @@
-import { timingSafeEqual } from 'node:crypto'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -6,20 +5,32 @@ import { strToU8, zipSync } from 'fflate'
 import { ACCOUNTS, DATASET_SLUG, KERNEL_SLUG, type AccountDef } from './_accounts.js'
 import { datasetsApi, kaggle, KaggleError, kernelsApi, seconds } from './_kaggle.js'
 
-// Owner-only control of where the model server runs (which Kaggle account's GPU) and when it is on.
+// Control of where the model server runs (which Kaggle account's GPU) and when it is on. Open to every visitor of the site.
 //   POST {action:'accounts'}                         -> GPU hours left per account (exhausted accounts are reported separately)
 //   POST {action:'start', account, runHours?}        -> starts the server on that account ('auto' = best available)
 //   POST {action:'stop'}                             -> stops the running server
 //   POST {action:'status'}                           -> which account is running, and how
-// Every call needs the owner key in the x-admin-key header.
+// Guard rails instead of a login: start refuses while a server is already running, and repeated start/stop calls from one
+// visitor are limited (best effort: the counters live in the function instance's memory).
 
 const MIN_HOURS = 1          // an account with less than this left is treated as out of GPU time
 const DEFAULT_RUN_HOURS = 3  // how long one start may run (Kaggle reserves this much quota up front)
 const IDLE_MINUTES = 7
 
-const same = (a: string, b: string) => {
-  const x = Buffer.from(a), y = Buffer.from(b)
-  return x.length === y.length && timingSafeEqual(x, y)
+// best-effort limiter: at most LIMIT start/stop calls per visitor per window
+const hits = new Map<string, number[]>()
+const WINDOW_MS = 10 * 60 * 1000
+const LIMIT = 6
+const tooMany = (ip: string): boolean => {
+  const now = Date.now()
+  const recent = (hits.get(ip) ?? []).filter((t) => now - t < WINDOW_MS)
+  if (recent.length >= LIMIT) {
+    hits.set(ip, recent)
+    return true
+  }
+  hits.set(ip, [...recent, now])
+  if (hits.size > 500) for (const [k, v] of hits) if (!v.some((t) => now - t < WINDOW_MS)) hits.delete(k)
+  return false
 }
 
 const tokenOf = (a: AccountDef) => process.env[a.env] || ''
@@ -148,11 +159,7 @@ const eligible = (i: AccountInfo) => i.configured && i.adaptersReady && i.kernel
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Cache-Control', 'no-store')
-  const key = process.env.ADMIN_KEY || ''
-  if (!key) return res.status(503).json({ error: 'not_configured', message: 'Server control is not set up on this site.' })
-  const given = String(req.headers['x-admin-key'] || '')
-  if (!given || !same(given, key)) return res.status(401).json({ error: 'unauthorized', message: 'The owner key is missing or wrong.' })
-
+  if (req.method !== 'POST') return res.status(405).json({ error: 'method', message: 'Use POST.' })
   const body = (req.body ?? {}) as { action?: string; account?: string; runHours?: number; dryRun?: boolean; except?: string }
   try {
     const infos = await Promise.all(ACCOUNTS.map(inspect))
@@ -168,12 +175,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     }
 
+    if (body.action === 'start' || body.action === 'stop') {
+      const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').split(',')[0].trim()
+      if (!body.dryRun && tooMany(ip)) return res.status(429).json({ error: 'slow_down', message: 'Too many start/stop requests in a short time. Please wait a few minutes.' })
+    }
+
     if (body.action === 'stop') {
       const stopped = await stopRunning(infos.filter((i) => i.id !== body.except), body.account && body.account !== 'all' ? body.account : undefined)
       return res.status(200).json({ ok: true, stopped })
     }
 
     if (body.action === 'start') {
+      const alreadyOn = infos.find((i) => i.kernel === 'RUNNING' || i.kernel === 'QUEUED')
+      if (alreadyOn && !body.dryRun) {
+        return res.status(409).json({ error: 'already_running', message: `A server is already running on ${alreadyOn.label}. If it is not reachable yet it is still booting. To use a different account, turn it off first.`, account: alreadyOn.id })
+      }
       const wanted = body.account && body.account !== 'auto' ? body.account : ''
       const order = [
         ...(wanted ? [wanted] : []),
@@ -193,7 +209,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const script = buildScript(runHours) // proves the app code and secrets are all available; nothing is pushed or stopped
           return res.status(200).json({ ok: true, dryRun: true, account: id, runHours, scriptKB: Math.round(script.length / 1024), remainingHours: info.remainingHours })
         }
-        // only one server can hold the public address: stop any other running one first
+        // leftovers on other accounts (finished or older runs) are cleared so only one server can hold the public address
         await stopRunning(infos.filter((i) => i.id !== id))
         try {
           const r = await pushKernel(def, runHours)

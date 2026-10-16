@@ -1,25 +1,5 @@
 import { ApiError } from './api'
 
-const KEY = 'filinglensOwnerKey'
-
-export const getAdminKey = (): string => {
-  try {
-    return localStorage.getItem(KEY) ?? ''
-  } catch {
-    return ''
-  }
-}
-export const setAdminKey = (v: string) => {
-  try {
-    localStorage.setItem(KEY, v.trim())
-  } catch { /* storage unavailable */ }
-}
-export const clearAdminKey = () => {
-  try {
-    localStorage.removeItem(KEY)
-  } catch { /* storage unavailable */ }
-}
-
 export interface HostAccount {
   id: string
   label: string
@@ -57,16 +37,10 @@ export interface StartResult {
   skipped: { account: string; reason: string }[]
 }
 
-/** Owner-only calls that decide where the model server runs. Needs the owner key. */
+/** Calls that decide where the model server runs (which Kaggle account) and whether it is on. Open to every visitor. */
 export async function hostCall<T>(action: 'accounts' | 'start' | 'stop' | 'status', extra: Record<string, unknown> = {}): Promise<T> {
-  const key = getAdminKey()
-  if (!key) throw new ApiError('need_key', 'Enter the owner key to control the server.')
-  const r = await fetch('/api/host', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-key': key }, body: JSON.stringify({ action, ...extra }) })
+  const r = await fetch('/api/host', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...extra }) })
   const body = await r.json().catch(() => ({}))
-  if (r.status === 401) {
-    clearAdminKey()
-    throw new ApiError('unauthorized', 'That owner key is not right. Please enter it again.')
-  }
   if (!r.ok) throw new ApiError(body.error ?? 'error', body.message ?? `The request failed (${r.status}).`)
   return body as T
 }

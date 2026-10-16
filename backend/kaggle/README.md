@@ -4,12 +4,13 @@ The model service can run as a private Kaggle GPU kernel. The kernel starts the 
 adapter from the private dataset `filinglens-adapters`, and exposes it through an ngrok tunnel on a static domain. The
 website reads that address from `MODEL_URL`.
 
-## Starting and stopping from the website (owner only)
+## Starting and stopping from the website (open to every visitor)
 The header button opens an account picker. It reads each Kaggle account's GPU quota live (the same numbers as kaggle.com),
 lists the accounts that still have at least 1 GPU hour left (default: the main account), and hides the ones that are out,
 with the date they come back. Pressing **Start server** pushes the kernel on the chosen account and stops any server running
 elsewhere. **Turn off** deletes the kernel, which ends the session and releases the reserved GPU time.
-This needs the owner key (`ADMIN_KEY`) and, in Vercel's environment settings: `KAGGLE_TOKEN_<ACCOUNT>` for each account,
+There is no login. Guard rails instead: Start refuses while a server is already running, and repeated start/stop calls from one visitor are limited (best effort).
+It needs, in Vercel's environment settings: `KAGGLE_TOKEN_<ACCOUNT>` for each account,
 `NGROK_AUTHTOKEN`, `NGROK_DOMAIN`, `MODEL_API_KEY`, `SEC_USER_AGENT`. Each account needs its own private `filinglens-adapters` dataset.
 The accounts are listed in `api/_accounts.ts`.
 

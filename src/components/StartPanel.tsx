@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ApiError } from '../api'
-import { getAdminKey, hostCall, setAdminKey, type HostAccounts, type StartResult } from '../host'
+import { hostCall, type HostAccounts, type StartResult } from '../host'
 
 interface Props {
   onClose: () => void
@@ -14,8 +13,6 @@ const when = (iso: string) => {
 }
 
 export default function StartPanel({ onClose, onStarted, onAlreadyRunning }: Props) {
-  const [hasKey, setHasKey] = useState(!!getAdminKey())
-  const [keyText, setKeyText] = useState('')
   const [data, setData] = useState<HostAccounts | null>(null)
   const [pick, setPick] = useState('')
   const [hours, setHours] = useState(3)
@@ -23,7 +20,6 @@ export default function StartPanel({ onClose, onStarted, onAlreadyRunning }: Pro
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    if (!hasKey) return
     let alive = true
     hostCall<HostAccounts>('accounts')
       .then((d) => {
@@ -35,11 +31,10 @@ export default function StartPanel({ onClose, onStarted, onAlreadyRunning }: Pro
       })
       .catch((e) => {
         if (!alive) return
-        if (e instanceof ApiError && e.code === 'unauthorized') setHasKey(false)
         setErr(e instanceof Error ? e.message : 'Could not load the accounts.')
       })
     return () => { alive = false }
-  }, [hasKey])
+  }, [])
 
   const start = async () => {
     setBusy(true)
@@ -62,18 +57,12 @@ export default function StartPanel({ onClose, onStarted, onAlreadyRunning }: Pro
       <div className="mstatus-head">
         <div>
           <b>Start the model server</b>
-          <small className="muted block">Runs on a free Kaggle GPU. Pick the account to use.</small>
+          <small className="muted block">Runs on a free Kaggle GPU. Pick the account to use. Anyone using the site can start or stop it.</small>
         </div>
         <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">×</button>
       </div>
 
-      {!hasKey ? (
-        <form onSubmit={(e) => { e.preventDefault(); if (keyText.trim()) { setAdminKey(keyText); setHasKey(true); setErr('') } }}>
-          <p className="muted small">Starting and stopping the server is owner-only. Enter your owner key (it is saved in this browser).</p>
-          <input type="password" className="keyin" placeholder="Owner key" value={keyText} onChange={(e) => setKeyText(e.target.value)} autoFocus />
-          <button type="submit" className="btn small primary" disabled={!keyText.trim()}>Save and continue</button>
-        </form>
-      ) : (
+      {(
         <>
           {!data && !err && <p className="muted small">Checking each account’s GPU hours…</p>}
 

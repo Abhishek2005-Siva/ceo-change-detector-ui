@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, modelHealth } from '../api'
 import { clearStarting, coldEstimate, bootEstimate, getStartingAt, getStartingEstimate, markOff, markReady, markStarting, readyUntil, recordBoot, recordCold, setStartingEstimate } from '../modelState'
 import { fmtSecs } from '../hooks'
-import { getAdminKey, hostCall, setAdminKey, type StartResult } from '../host'
+import { hostCall, type StartResult } from '../host'
 import ModelStatusPanel, { DEMO, DEMO_MODELS, summarize } from './ModelStatusPanel'
 import StartPanel from './StartPanel'
 
@@ -56,12 +56,7 @@ export default function ModelPower() {
   }, [state])
 
   const turnOff = async () => {
-    if (!window.confirm('Turn the model server off?\n\nThis stops the Kaggle GPU session and frees the GPU hours. Starting it again takes about 12 minutes.')) return
-    if (!getAdminKey()) {
-      const k = window.prompt('Owner key (stopping the server is owner-only):')
-      if (!k) return
-      setAdminKey(k)
-    }
+    if (!window.confirm('Turn the model server off?\n\nThis stops the Kaggle GPU session for everyone using the site and frees the GPU hours. Starting it again takes about 12 minutes.')) return
     setStopping(true)
     try {
       await hostCall('stop')
