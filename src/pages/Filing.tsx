@@ -23,7 +23,7 @@ function Panel({ kind, ex }: { kind: 'appointed' | 'resigned'; ex: Extraction })
       {ex.found && (
         <>
           <dl className="facts">
-            <div><dt>Person</dt><dd>{ex.name || 'Name not captured by the pattern matcher. See the sentence.'}</dd></div>
+            <div><dt>Person</dt><dd>{ex.name || 'Not named in the sentence'}</dd></div>
             <div><dt>Confidence</dt><dd>{ex.confidence != null ? pct(ex.confidence, 2) : '—'}</dd></div>
           </dl>
           <h4>Sentence the AI relied on</h4>

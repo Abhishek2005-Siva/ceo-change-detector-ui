@@ -20,6 +20,7 @@ from peft import PeftModel
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from .devices import place
+from .people import pick_name, pick_name_from_sentences
 from .item502 import regex_extract_ceo_event
 
 LABELS = ["NONE", "APPOINTED", "RESIGNED"]
@@ -155,6 +156,12 @@ class Ensemble:
                         if ev and ev[1] == key:
                             name = ev[0]
                             break
+            if best and not name:
+                context = " ".join(sentences)
+                name = pick_name(sentence, key, context) or ""
+                if not name:
+                    flagged = [sentences[i] for i in range(len(sentences)) if any(sent_rows[i]["readers"][r]["counts"] for r in range(len(names)))]
+                    name = pick_name_from_sentences(flagged, key, context) or ""
             if best and not name:
                 m = _HONORIFIC_SURNAME.search(sentence)
                 if m:

@@ -97,6 +97,10 @@ export interface DetectorEvent {
   detail?: string
   source?: string
   readers?: { reader: string; probability: number }[]
+  kind?: 'appointed' | 'resigned'
+  name?: string | null
+  interim?: boolean
+  effective?: string | null
 }
 
 export interface DetectorResult {

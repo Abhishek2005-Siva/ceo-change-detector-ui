@@ -18,6 +18,7 @@ from . import context as ctxmod
 from .deal_text import deal_sentences, extract_amounts
 from .families import SECTION_CAP, DistressFamily, Family, _load
 from .items import find_item_section, list_headings, normalize_filing_text
+from ..people import _APPOINT, _LEAVE, pick_name, pick_name_from_sentences
 from .labelers201 import mark_self, self_aliases
 from .deal_text import strip_caption
 
@@ -68,7 +69,26 @@ class CFO(DistressFamily):
             res = self.not_applicable()
             res.update({"applicable": True, "note": "This leadership section never mentions a CFO, so no CFO change is possible."})
             return res
-        return super().run(plain, tables, filing_date, **ctx)
+        res = super().run(plain, tables, filing_date, **ctx)
+        if not res.get("found"):
+            return res
+        cfo_sents = [x for x in ctxmod._sentences(section, "5.02") if re.search(ctxmod.CFO_TITLE_PATTERN, x, re.I)]
+        fields = res.get("fields") or {}
+        for ev in res["events"]:
+            kind = "appointed" if ev["label"] == "CFO_APPOINTED" else "resigned"
+            verb = _APPOINT if kind == "appointed" else _LEAVE
+            evidence = ev.get("evidence")
+            if not evidence:  # the rule layer found no sentence: take the CFO sentence that talks about this kind of change
+                evidence = next((x for x in cfo_sents if verb.search(x)), cfo_sents[0] if cfo_sents else None)
+                ev["evidence"] = evidence
+            name = fields.get(f"{kind}_name") or (pick_name(evidence, kind, section) if evidence else None) or pick_name_from_sentences(cfo_sents, kind, section)
+            interim = bool(fields.get(f"{kind}_interim"))
+            ev.update({
+                "kind": kind, "name": name, "interim": interim, "effective": fields.get(f"{kind}_effective"),
+                "title": ("New interim CFO named" if interim else "New CFO named") if kind == "appointed" else ("Interim CFO leaving" if interim else "CFO leaving"),
+            })
+        res["fields"] = {}  # names, dates and the interim flag now live on each event
+        return res
 
 
 # --------------------------------------------------------------------------------- 2.01

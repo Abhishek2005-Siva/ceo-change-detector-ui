@@ -14,12 +14,19 @@ const show = (v: unknown): string => (Array.isArray(v) ? v.join(', ') : typeof v
 
 function Event({ e }: { e: DetectorEvent }) {
   return (
-    <div className="devent">
+    <div className={`devent ${e.kind ? `person-event k-${e.kind}` : ''}`}>
       <div className="devent-head">
+        {e.kind && <span className={`kind k-${e.kind}`} aria-hidden="true">{e.kind === 'appointed' ? '＋' : '−'}</span>}
         <b>{e.title}</b>
         {e.confidence != null && <span className="pill v-correct">{pct(e.confidence, 1)} sure</span>}
         {e.source && <span className="pill src">{e.source}</span>}
       </div>
+      {e.kind && (
+        <dl className="facts">
+          <div><dt>Person</dt><dd>{e.name || 'Not named in the sentence'}{e.interim ? ' (interim)' : ''}</dd></div>
+          {e.effective && <div><dt>Effective</dt><dd>{e.effective}</dd></div>}
+        </dl>
+      )}
       {e.detail && <p className="devent-detail">{e.detail}</p>}
       {e.evidence && (
         <blockquote>

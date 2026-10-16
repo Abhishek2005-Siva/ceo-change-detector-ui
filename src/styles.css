@@ -419,3 +419,7 @@ td.empty { text-align: center; }
 .power-off { border: 1px solid var(--border); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 8px 14px; font: inherit; font-size: .84rem; font-weight: 650; cursor: pointer; }
 .power-off:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
 .power-off:disabled { opacity: .6; cursor: default; }
+.person-event { border-left: 4px solid var(--border); padding-left: 12px; margin-top: 8px; border-radius: 4px; }
+.person-event.k-appointed { border-left-color: var(--green); }
+.person-event.k-resigned { border-left-color: var(--violet); }
+.person-event .devent-head .kind { width: 24px; height: 24px; font-size: .95rem; }
