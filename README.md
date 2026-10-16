@@ -8,15 +8,23 @@ When something important happens at a US public company, it must tell the SEC in
 
 ## What it detects
 
+Every filing you open is run through **all** of these detectors; each one only reports when its 8-K Item is present.
+
 | Detector | 8-K Item | Model | Held-out result |
 |---|---|---|---|
 | **CEO appointed or leaving** | 5.02 | 3 readers vote: RoBERTa-large x2 + DeBERTa-v3, per sentence | March 2025: new CEO 94.7% right / 84.8% found; CEO leaving 95.8% / 79.3% |
+| **CFO appointed or leaving** | 5.02 | 4 RoBERTa-large fold models averaged | Cross-validation: new CFO 95.8% / 93.7%; CFO leaving 88.6% / 91.3% |
 | **Bankruptcy or receivership** | 1.03 | RoBERTa-large + DeBERTa-v3, section level, date-aware | 149 events: 94.7% right / 96.0% found |
 | **Delisting or listing notice** | 3.01 | RoBERTa-large x2 + DeBERTa-v3, section level | 477 events: deficiency 97% / 92%, exchange delisting 90% / 89%, voluntary 95% / 99% |
 | **Change of auditor** | 4.01 | RoBERTa-base + rule engine | 348 filings: F1 0.97-0.99 on dismissed / resigned / engaged / reportable event |
 | **Shareholder vote results** | 5.07 | RoBERTa-base + rule engine + vote-table parser | 589 filings: F1 0.96-0.99 on directors, auditor, say-on-pay, equity plan |
+| **Acquisition / sale completed** *(experimental)* | 2.01 | RoBERTa-base sentences + RoBERTa-large direction | Deal completed F1 0.95; who-bought-whom 90% |
+| **Material agreements** *(experimental)* | 1.01 / 1.02 | RoBERTa-base event + type readers | Entered F1 0.94, ended F1 0.88; type is a hint only |
+| **Unregistered equity sales** *(experimental)* | 3.02 | RoBERTa-base sale + type readers | No independent accuracy yet |
+| **Earnings guidance** *(experimental)* | 2.02 | RoBERTa-large on the press release | Accuracy 90.6%, macro-F1 0.77 |
+| **Restructuring / impairment** *(experimental)* | 2.05 / 2.06 | RoBERTa-large (seed 123) | Accuracy 95.4%, macro-F1 0.86 (random split) |
 
-Each detector uses the best honestly-measured model found for that event type. All results are on months or filings the models never saw during training. Models that were tested but not selected, and the full per-model metrics, are listed on the **Model notes** page. "Coming next": CFO changes, acquisitions (2.01), earnings guidance, restructuring and impairments, unregistered equity sales.
+Each detector uses the best honestly-measured model found for that event type. "Experimental" means the testing is thinner (small or tuned-on test sets, or labels made by rules). Models that were tested but not selected, and every per-model metric, are on the **Model notes** page. Not included yet: a single frozen CFO model, restatements (4.02), cybersecurity (1.05).
 
 **Caveats:** accuracy is scored against answer keys built from a separate large AI model plus rules, with disagreements hand-checked for some detectors, so treat the numbers as strong estimates, not guarantees. FilingLens is a research tool, not financial or legal advice.
 
@@ -44,7 +52,7 @@ Browser (React)  -->  Vercel serverless API (api/*.ts)  -->  SEC EDGAR (search, 
 
 - `api/search`, `api/filings`, `api/companies`: proxy the SEC's public EDGAR endpoints (with the required contact User-Agent).
 - `api/analyze`: starts and polls a model job. The browser never sees the model service address or key.
-- `backend/`: FastAPI service. It downloads the filing once, parses it two ways (plain text and table-preserving text), finds each Item's section, and runs every applicable detector with the exact pipeline that detector was trained and tested with. The CEO ensemble is preloaded from a memory snapshot; the other detectors load in the background after start-up.
+- `backend/`: FastAPI service. It downloads the filing once, parses it two ways (plain text and table-preserving text), finds each Item's section, and runs every applicable detector with the exact pipeline that detector was trained and tested with (ten detectors, 20 model adapters). The CEO ensemble is preloaded from a memory snapshot; the other detectors load in the background after start-up, using about 22 GB of RAM in total.
 - Speed work that keeps predictions unchanged: LoRA adapters are merged into the base weights, sentences are batched by length, and the CEO check is skipped when the section never mentions a CEO or president. int8 quantization was tested and rejected because it changed real decisions.
 - **The fine-tuned model files are never in this repository or on GitHub.** They live in a private Hugging Face model repo and are fetched by the service at startup using a Modal secret.
 

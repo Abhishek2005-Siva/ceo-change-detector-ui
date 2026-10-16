@@ -27,7 +27,7 @@ app = modal.App("leadership-change-detector", image=image)
 
 @app.cls(
     cpu=8.0,
-    memory=20480,
+    memory=32768,
     secrets=[modal.Secret.from_name("ceo-detector-secrets")],
     max_containers=1,  # jobs live in this container's memory, so keep exactly one
     scaledown_window=180,

@@ -111,6 +111,7 @@ export interface DetectorResult {
   seconds?: number
   error?: string
   note?: string
+  experimental?: string
   voteRows?: Record<string, unknown>[]
 }
 

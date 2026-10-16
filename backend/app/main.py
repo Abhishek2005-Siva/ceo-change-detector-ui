@@ -17,7 +17,7 @@ import re
 
 from .item502 import ITEM_HEADING_RE, find_item_502_section, split_sentences
 from .detect.fetch import fetch_all
-from .detect.families import REGISTRY, run_all
+from .detect.registry import REGISTRY, run_all
 from .sec_fetch import filing_txt_url
 
 API_KEY = os.getenv("API_KEY", "")
@@ -100,7 +100,7 @@ def _run(job: dict, cik: str, accession: str) -> None:
     t0 = time.time()
     try:
         _set(job, stage="fetching", progress=0.05)
-        text, tables_text, meta = fetch_all(cik, accession)
+        text, tables_text, meta, exhibit = fetch_all(cik, accession)
         if text is None:
             _set(job, stage="error", t_end=time.time(), error="The SEC did not return this filing (not found or temporarily unavailable).")
             return
@@ -146,7 +146,7 @@ def _run(job: dict, cik: str, accession: str) -> None:
             _set(job, stage="detectors", progress=0.88, detail=f"Checking: {title}" + (" (loading its AI readers first)" if cold else ""), loadingModels=cold)
 
         _set(job, stage="detectors", progress=0.86, detail="Checking for other events…")
-        result["detectors"] = run_all(text, tables_text, meta.filed, on_status)
+        result["detectors"] = run_all(text, tables_text, meta.filed, meta.company, exhibit, on_status)
         result["seconds"] = round(time.time() - t0, 1)
         _cache[f"{cik}/{accession}"] = result
         _set(job, stage="done", progress=1.0, result=result, t_end=time.time())

@@ -2,8 +2,12 @@ import Highlight from './Highlight'
 import type { DetectorEvent, DetectorResult } from '../types'
 import { pct } from '../utils'
 
-const ICON: Record<string, string> = { bankruptcy: '⚖', delisting: '⇩', auditor: '✎', votes: '☑' }
-const TONE: Record<string, string> = { bankruptcy: 'red', delisting: 'amber', auditor: 'violet', votes: 'blue' }
+export const ICON: Record<string, string> = {
+  bankruptcy: '⚖', delisting: '⇩', auditor: '✎', votes: '☑', cfo: '👔', acquisition: '🤝', agreements: '📄', equity: '📈', guidance: '📊', restructuring: '🏭',
+}
+export const TONE: Record<string, string> = {
+  bankruptcy: 'red', delisting: 'amber', auditor: 'violet', votes: 'blue', cfo: 'green', acquisition: 'blue', agreements: 'violet', equity: 'amber', guidance: 'blue', restructuring: 'red',
+}
 
 const nice = (k: string) => k.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
 const show = (v: unknown): string => (Array.isArray(v) ? v.join(', ') : typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v))
@@ -48,6 +52,7 @@ export default function DetectorCard({ d }: { d: DetectorResult }) {
           <p className="muted small">Form 8-K Item {d.item}{d.seconds != null ? ` · checked in ${d.seconds}s` : ''}</p>
         </div>
       </div>
+      {d.experimental && d.found && <p className="caveat"><b>Note:</b> {d.experimental}</p>}
       {d.error && <p className="explain warn">This detector hit an error: {d.error}</p>}
       {d.note && <p className="muted small">{d.note}</p>}
       {d.events.map((e) => <Event key={e.label} e={e} />)}

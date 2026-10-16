@@ -384,3 +384,12 @@ td.empty { text-align: center; }
 @media (max-width: 800px) { .det-grid { grid-template-columns: 1fr; } }
 .dcard.wide { grid-column: 1 / -1; }
 .vtable td:first-child { min-width: 260px; }
+
+/* quiet list + caveats */
+.dcard.tone-green { --c: var(--green); }
+.quiet { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.quiet li { display: inline-flex; align-items: baseline; gap: 8px; padding: 7px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); font-size: .88rem; }
+.quiet small { color: var(--muted); }
+.bad-text { color: var(--red); font-style: normal; font-size: .78rem; }
+.caveat { margin: 4px 0 8px; font-size: .84rem; color: var(--amber); background: var(--amber-soft); padding: 8px 10px; border-radius: 8px; }
+.pill.exp { background: var(--amber-soft); color: var(--amber); font-weight: 600; vertical-align: middle; margin-left: 6px; }

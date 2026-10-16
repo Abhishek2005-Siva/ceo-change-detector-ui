@@ -12,12 +12,12 @@ const steps = [
   {
     n: 2,
     title: 'Download and split it into sections',
-    body: 'Every 8-K is organised in numbered “Items”: 5.02 is leadership changes, 1.03 is bankruptcy, 3.01 is delisting, 4.01 is auditors, 5.07 is shareholder votes. We cut the filing into those sections so each detector only reads the part that matters.',
+    body: 'Every 8-K is organised in numbered “Items”: 5.02 is leadership changes, 1.03 bankruptcy, 2.01 completed acquisitions, 3.01 delisting, 4.01 auditors, 5.07 shareholder votes, and more. We cut the filing into those sections so each detector only reads the part that matters.',
   },
   {
     n: 3,
     title: 'Send each section to the right AI readers',
-    body: 'Each type of event has its own AI detector, trained on thousands of real filings. Leadership changes are read sentence by sentence by three AI readers that vote. Bankruptcy and delisting notices are read as a whole by two or three readers that average their answers.',
+    body: 'Each type of event has its own AI detector, trained on real filings, and every filing is checked by all of them. CEO changes are read sentence by sentence by three readers that vote. Bankruptcy, delisting and CFO changes are read as a whole by several readers that average their answers. Earnings guidance is read from the attached press release.',
   },
   {
     n: 4,

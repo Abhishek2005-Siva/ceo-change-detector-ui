@@ -26,8 +26,15 @@ const PRESETS: [string, string, () => [string, string]][] = [
 const EVENT_TYPES: [string, string][] = [
   ['', 'Any filing'],
   ['5.02', 'Leadership changes (CEO, CFO, directors)'],
+  ['1.01', 'Material agreement entered'],
+  ['1.02', 'Material agreement ended'],
   ['1.03', 'Bankruptcy or receivership'],
+  ['2.01', 'Acquisition or sale of assets completed'],
+  ['2.02', 'Earnings results and guidance'],
+  ['2.05', 'Restructuring or exit costs'],
+  ['2.06', 'Material impairment'],
   ['3.01', 'Delisting or listing notice'],
+  ['3.02', 'Unregistered equity sales'],
   ['4.01', 'Change of auditor'],
   ['5.07', 'Shareholder vote results'],
 ]

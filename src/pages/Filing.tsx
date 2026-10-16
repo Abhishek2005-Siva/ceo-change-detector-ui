@@ -109,15 +109,16 @@ function Result({ r }: { r: AnalysisResult }) {
       {(quietDets.length > 0 || (r.item502Found && ceoCount === 0)) && (
         <section>
           <h2 className="sec-h">Checked, nothing reported</h2>
-          <div className="grid-2 tight">
-            {r.item502Found && ceoCount === 0 && (
-              <div className="card dcard none">
-                <h3>Leadership change (CEO)</h3>
-                <p className="muted small">Form 8-K Item 5.02 · no CEO appointment or departure found</p>
-              </div>
-            )}
-            {quietDets.map((d) => <DetectorCard key={d.key} d={d} />)}
-          </div>
+          <ul className="quiet">
+            {r.item502Found && ceoCount === 0 && <li><b>CEO change</b><small>Item 5.02</small></li>}
+            {quietDets.map((d) => (
+              <li key={d.key} title={d.note ?? 'Checked this section. Nothing newly reported.'}>
+                <b>{d.title}</b>
+                <small>Item {d.item}</small>
+                {d.error && <em className="bad-text">error</em>}
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

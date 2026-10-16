@@ -83,6 +83,12 @@ class Family:
     item = ""
     title = ""
     models: List[str] = []
+    items: List[str] = []   # every 8-K Item this detector reads (defaults to [item])
+    source = "plain"        # which text variant the Item section is cut from: "plain" or "tables"
+    experimental = ""       # honest caveat shown next to the detector, if any
+
+    def item_list(self) -> List[str]:
+        return self.items or [self.item]
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -101,11 +107,16 @@ class Family:
     def _load_models(self) -> None:
         raise NotImplementedError
 
-    def run(self, plain: str, tables: str, filing_date: str) -> dict:
+    def present(self, plain: str, tables: str) -> bool:
+        text = tables if self.source == "tables" else plain
+        return any(find_item_section(text, it) is not None for it in self.item_list())
+
+    def run(self, plain: str, tables: str, filing_date: str, **ctx) -> dict:
         raise NotImplementedError
 
     def not_applicable(self) -> dict:
-        return {"key": self.key, "item": self.item, "title": self.title, "applicable": False, "found": False, "events": []}
+        return {"key": self.key, "item": self.item, "title": self.title, "applicable": False, "found": False, "events": [],
+                "experimental": self.experimental}
 
 
 # --------------------------------------------------------------------------------- 1.03 / 3.01
@@ -121,7 +132,7 @@ class DistressFamily(Family):
             tok, model, _ = _load(folder, len(ctxmod.ITEM_CFG[self.item]["labels"]))
             self._m.append((tok, model, max_len, name))
 
-    def run(self, plain: str, tables: str, filing_date: str) -> dict:
+    def run(self, plain: str, tables: str, filing_date: str, **ctx) -> dict:
         t0 = time.time()
         labels = ctxmod.ITEM_CFG[self.item]["labels"]
         section = find_item_section(plain, self.item)
@@ -151,7 +162,7 @@ class DistressFamily(Family):
                 "readers": [{"reader": n, "probability": round(p[labels.index(l)], 4)} for n, p in per_model],
             })
         return {
-            "key": self.key, "item": self.item, "title": self.title, "applicable": True,
+            "key": self.key, "item": self.item, "title": self.title, "applicable": True, "experimental": self.experimental,
             "found": bool(events), "events": events, "fields": a["fields"],
             "probabilities": {l: round(v, 4) for l, v in zip(labels, mean)},
             "readerProbabilities": {n: {l: round(v, 4) for l, v in zip(labels, p)} for n, p in per_model},
@@ -216,6 +227,7 @@ class SentenceFamily(Family):
 
 class Auditor(SentenceFamily):
     key, item, title = "auditor", "4.01", "Change of auditor"
+    source = "tables"
     mod, folder = item401, "auditor_rb"
     models = ["auditor_rb"]
     flags = [
@@ -227,7 +239,7 @@ class Auditor(SentenceFamily):
         ("OPINION_MODIFIED", "opinion_modified", "Prior audit opinion was adverse or qualified"),
     ]
 
-    def run(self, plain: str, tables: str, filing_date: str) -> dict:
+    def run(self, plain: str, tables: str, filing_date: str, **ctx) -> dict:
         t0 = time.time()
         got = self._analyze(plain, tables)
         if got is None:
@@ -247,7 +259,7 @@ class Auditor(SentenceFamily):
                     "confidence": m["confidence"].get(label), "evidence": m["evidence"].get(label) or r["evidence"].get(label),
                 })
         return {
-            "key": self.key, "item": self.item, "title": self.title, "applicable": True, "found": bool(events), "events": events,
+            "key": self.key, "item": self.item, "title": self.title, "applicable": True, "experimental": self.experimental, "found": bool(events), "events": events,
             "fields": {"former_auditor": m["former_auditor"] or r["former_auditor"], "new_auditor": m["new_auditor"] or r["new_auditor"]},
             "readerNames": ["RoBERTa-base + rule engine"], "seconds": round(time.time() - t0, 2),
         }
@@ -255,6 +267,7 @@ class Auditor(SentenceFamily):
 
 class Votes(SentenceFamily):
     key, item, title = "votes", "5.07", "Shareholder vote results"
+    source = "tables"
     mod, folder = item507, "votes_rb"
     models = ["votes_rb"]
     flags = [
@@ -272,7 +285,7 @@ class Votes(SentenceFamily):
         ("any_failed", "A proposal did not pass"),
     ]
 
-    def run(self, plain: str, tables: str, filing_date: str) -> dict:
+    def run(self, plain: str, tables: str, filing_date: str, **ctx) -> dict:
         t0 = time.time()
         got = self._analyze(plain, tables)
         if got is None:
@@ -300,7 +313,7 @@ class Votes(SentenceFamily):
                 row.update({"Nominees": t.get("n_rows"), "Below majority": t.get("nominees_below_majority")})
             rows_out.append({k: v for k, v in row.items() if v is not None})
         return {
-            "key": self.key, "item": self.item, "title": self.title, "applicable": True, "found": bool(events), "events": events,
+            "key": self.key, "item": self.item, "title": self.title, "applicable": True, "experimental": self.experimental, "found": bool(events), "events": events,
             "fields": {
                 "Proposals voted on": m.get("n_proposals") or None,
                 "Say-on-pay support": (f"{m['say_on_pay_pct_for']:.1f}% for, " + ("did not pass" if m.get("say_on_pay_failed") else "passed")) if isinstance(m.get("say_on_pay_pct_for"), (int, float)) else None,
@@ -308,20 +321,3 @@ class Votes(SentenceFamily):
             "voteRows": rows_out,
             "readerNames": ["RoBERTa-base + rule engine"], "seconds": round(time.time() - t0, 2),
         }
-
-
-REGISTRY: List[Family] = [Bankruptcy(), Delisting(), Auditor(), Votes()]
-
-
-def run_all(plain: str, tables: str, filing_date: str, on_status: Optional[Callable[[str, bool], None]] = None) -> List[dict]:
-    """Runs every family; families whose Item is absent from the filing report applicable=False cheaply."""
-    out = []
-    for fam in REGISTRY:
-        present = find_item_section(tables if fam.item in ("4.01", "5.07") else plain, fam.item) is not None
-        if present and on_status:
-            on_status(fam.title, not fam.loaded)
-        try:
-            out.append(fam.run(plain, tables, filing_date))
-        except Exception as exc:  # one failing detector must not hide the others
-            out.append({**fam.not_applicable(), "applicable": present, "error": f"{type(exc).__name__}: {exc}"})
-    return out

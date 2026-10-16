@@ -28,8 +28,8 @@ export default function Overview() {
         <h1>See what happened in any SEC 8-K filing, in plain English.</h1>
         <p className="lead">
           When something important happens at a US public company, it has to tell the SEC in a document called an <strong>8-K</strong>. Thousands are filed every month,
-          most of them long and technical. FilingLens finds the filing, reads it with AI, and tells you what changed: a new CEO, a bankruptcy, a delisting notice,
-          a new auditor, how shareholders voted. Every answer comes with the exact sentence it is based on.
+          most of them long and technical. FilingLens finds the filing, reads it with AI, and tells you what changed: a new CEO or CFO, a bankruptcy, a delisting notice,
+          a closed acquisition, a new auditor, how shareholders voted, a layoff or a raised forecast. Every answer comes with the exact sentence it is based on.
         </p>
         <div className="hero-actions">
           <a className="btn primary" href="#/search">Search and analyze a filing</a>
@@ -38,14 +38,14 @@ export default function Overview() {
       </section>
 
       <section aria-labelledby="h-detect">
-        <h2 id="h-detect">What FilingLens detects <span className="tag">{detectors.length} AI detectors, each tested on filings it never saw</span></h2>
+        <h2 id="h-detect">What FilingLens detects <span className="tag">{detectors.length} AI detectors · every one is tested on filings it never saw; “Experimental” ones have thinner testing</span></h2>
         <div className="det-grid">
           {detectors.map((d) => (
             <article key={d.key} className={`card det tone-${d.tone}`}>
               <div className="det-head">
                 <span className={`dicon t-${d.tone}`} aria-hidden="true">{d.icon}</span>
                 <div>
-                  <h3>{d.title}</h3>
+                  <h3>{d.title} {d.experimental && <span className="pill exp">Experimental</span>}</h3>
                   <p className="muted small">Form 8-K Item {d.item}</p>
                 </div>
               </div>
