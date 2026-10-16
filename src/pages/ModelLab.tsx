@@ -35,12 +35,12 @@ export default function ModelLab() {
 
       <section className="grid-2 tight">
         <div className="card">
-          <h3>Overall score of the strongest candidates</h3>
+          <h3>CEO detector: overall score of the strongest candidates</h3>
           <p className="muted small">Average F1 across four unseen months (March, May, June, August 2025). 1.0 would be perfect.</p>
           <BarChart bars={candidates} min={0.8} max={0.875} ariaLabel="Overall score of each candidate model; the mixed team scores highest at 0.8673" />
         </div>
         <div className="card">
-          <h3>The chosen model in numbers</h3>
+          <h3>The chosen CEO model in numbers</h3>
           <table className="kv">
             <tbody>
               <tr><th>Design</th><td>2× RoBERTa-large + 1× DeBERTa-v3-base</td></tr>
@@ -67,7 +67,7 @@ export default function ModelLab() {
       </section>
 
       <section>
-        <h2>The trade-off every model faces</h2>
+        <h2>The trade-off every detector faces</h2>
         <div className="card tradeoff">
           <div>
             <b>Strict</b>
@@ -79,7 +79,7 @@ export default function ModelLab() {
             <p>Flags anything plausible. Catches nearly everything, but many false alarms.</p>
           </div>
         </div>
-        <p className="note">The chosen model leans slightly strict: about 95% of its alerts are right and it finds about 80–85% of real events.</p>
+        <p className="note">The CEO model leans slightly strict: about 95% of its alerts are right and it finds about 80–85% of real events. Other detectors sit at their own points on this scale; see the cards on the Overview.</p>
       </section>
 
       <section>

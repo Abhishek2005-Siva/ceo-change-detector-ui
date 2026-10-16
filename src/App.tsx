@@ -15,7 +15,7 @@ const pages = [
   { id: 'search', label: 'Search filings', el: Search },
   { id: 'analyses', label: 'My analyses', el: Analyses },
   { id: 'how', label: 'How it works', el: HowItWorks },
-  { id: 'results', label: 'CEO test results', el: Explorer },
+  { id: 'results', label: 'Test results', el: Explorer },
   { id: 'models', label: 'Why this model', el: ModelLab },
   { id: 'notes', label: 'Model notes', el: Notes },
 ] as const

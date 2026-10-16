@@ -46,7 +46,7 @@ export default function Search() {
   const saved = memory.search
   const [preset, setPreset] = useState('30d')
   const [params, setParams] = useState<SearchParams>(
-    saved?.params ?? { q: '', forms: '8-K', start: daysAgo(30), end: iso(new Date()), cik: '', item: '5.02', from: 0 },
+    saved?.params ?? { q: '', forms: '8-K', start: daysAgo(30), end: iso(new Date()), cik: '', item: '', from: 0 },
   )
   const [company, setCompany] = useState<Company | null>(saved?.company ?? null)
   const [resp, setResp] = useState<SearchResponse | null>(saved?.response ?? null)
@@ -111,7 +111,7 @@ export default function Search() {
         <span className="eyebrow">Live · searches the SEC’s EDGAR database</span>
         <h1>Search SEC filings</h1>
         <p className="lead">
-          Search the same public filings database as sec.gov. Click any filing and the AI will read it, find the leadership change, and pull out the data.
+          Search the same public filings database as sec.gov. Click any filing and the AI will read it for every kind of event (leadership changes, bankruptcy, delisting, auditors, votes, deals, earnings and more) and pull out the details. Or analyze every result at once.
         </p>
       </section>
 
@@ -119,7 +119,7 @@ export default function Search() {
         <div className="sform-grid">
           <label className="field wide">
             <span>Keywords or phrase</span>
-            <input type="search" placeholder={'e.g. "Chief Executive Officer" resigned'} value={params.q} onChange={(e) => setParams({ ...params, q: e.target.value })} />
+            <input type="search" placeholder={'e.g. "going concern", "Chief Financial Officer" or a company name'} value={params.q} onChange={(e) => setParams({ ...params, q: e.target.value })} />
           </label>
           <div className="field">
             <span>Company</span>

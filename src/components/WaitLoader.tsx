@@ -13,9 +13,9 @@ interface Props {
 const STEPS = [
   { id: 'wake', label: 'Start the AI model', hint: 'Only needed when it has been idle' },
   { id: 'fetching', label: 'Download the filing from the SEC', hint: '' },
-  { id: 'locating', label: 'Find the leadership section (Item 5.02)', hint: '' },
-  { id: 'reading', label: 'AI readers check for a CEO change', hint: '' },
-  { id: 'detectors', label: 'Check for other events (bankruptcy, delisting, auditor, votes)', hint: '' },
+  { id: 'locating', label: 'Find the Items in the filing (5.02, 1.03, 2.02 …)', hint: '' },
+  { id: 'reading', label: 'AI readers check for CEO changes', hint: '' },
+  { id: 'detectors', label: 'Check every other event type (CFO, bankruptcy, delisting, auditor, votes, deals, agreements, equity, earnings, restructuring)', hint: '' },
 ] as const
 
 const rank: Record<string, number> = { queued: 1, fetching: 1, locating: 2, splitting: 3, reading: 3, detectors: 4, done: 5 }

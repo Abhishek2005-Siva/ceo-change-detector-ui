@@ -35,6 +35,11 @@ export default function Overview() {
           <a className="btn primary" href="#/search">Search and analyze a filing</a>
           <a className="btn" href="#/how">See how it works</a>
         </div>
+        <ul className="hero-points">
+          <li><b>{detectors.length} AI detectors</b> run on every filing you open: leadership, bankruptcy, delisting, auditors, votes, deals, agreements, equity sales, earnings and restructuring.</li>
+          <li><b>Analyze a whole search at once.</b> Hundreds or thousands of filings go into one spreadsheet. It keeps running if you close the page.</li>
+          <li><b>Every answer shows its evidence:</b> the exact sentence, how sure the AI is, and a link to the original filing.</li>
+        </ul>
       </section>
 
       <section aria-labelledby="h-detect">
@@ -70,7 +75,8 @@ export default function Overview() {
       </section>
 
       <section aria-labelledby="h-proof">
-        <h2 id="h-proof">Closer look: the CEO detector <span className="tag">Tested on {march.period.label}, a month the AI never saw during training</span></h2>
+        <h2 id="h-proof">Closer look at one detector: CEO changes <span className="tag">Tested on {march.period.label}, a month the AI never saw during training</span></h2>
+        <p className="note">The CEO detector is the one tested most thoroughly, so it is used here to show how every detector is measured. The scores for all {detectors.length} are in the cards above and in Model notes.</p>
         <div className="grid-4">
           <Stat big={pct(m.appointed.precision, 0)} title="of “new CEO” alerts were right" tone="green">
             {m.appointed.tp} of {m.appointed.tp + m.appointed.fp} appointment alerts were genuine. Only {m.appointed.fp} false alarms.
@@ -91,7 +97,7 @@ export default function Overview() {
       </section>
 
       <section aria-labelledby="h-dots">
-        <h2 id="h-dots">Every real CEO event in {march.period.label}, and what the AI did with it</h2>
+        <h2 id="h-dots">CEO example: every real CEO event in {march.period.label}, and what the AI did with it</h2>
         <div className="grid-2">
           <div className="card">
             <h3>New CEO named — {apptReal} real events</h3>
@@ -113,7 +119,7 @@ export default function Overview() {
       </section>
 
       <section aria-labelledby="h-funnel">
-        <h2 id="h-funnel">From a mountain of filings to a short list</h2>
+        <h2 id="h-funnel">From a mountain of filings to a short list <span className="tag">CEO example</span></h2>
         <div className="funnel">
           <div className="funnel-step" style={{ ['--w' as string]: '100%' }}>
             <b>{num(f.filings)}</b>
@@ -121,7 +127,7 @@ export default function Overview() {
           </div>
           <div className="funnel-step" style={{ ['--w' as string]: '62%' }}>
             <b>{num(f.withItem502)}</b>
-            <span>mention a change in directors or officers (the only ones worth reading closely)</span>
+            <span>mention a change in directors or officers (the filings the CEO detector reads closely)</span>
           </div>
           <div className="funnel-step" style={{ ['--w' as string]: '34%' }}>
             <b>{flagged}</b>
@@ -135,14 +141,14 @@ export default function Overview() {
       </section>
 
       <section aria-labelledby="h-prog">
-        <h2 id="h-prog">How we picked the best CEO model</h2>
+        <h2 id="h-prog">How the best model was chosen <span className="tag">CEO example</span></h2>
         <div className="grid-2 tight">
           <div className="card">
-            <h3>Overall accuracy score, tested on four unseen months</h3>
+            <h3>CEO detector: overall accuracy score on four unseen months</h3>
             <BarChart bars={progress} min={0.8} max={0.875} ariaLabel="Overall accuracy score of each model generation, rising from 0.8126 to 0.8673" />
           </div>
           <div className="card">
-            <h3>The winner: a panel of three AI readers</h3>
+            <h3>The winner for CEO changes: a panel of three AI readers</h3>
             <p>
               Instead of trusting one AI, three different ones read every sentence. Two are <strong>RoBERTa-large</strong> models and one is <strong>DeBERTa-v3</strong>,
               a different design with different strengths. A sentence is flagged only if at least two of them agree <em>and</em> are at least 70% sure.

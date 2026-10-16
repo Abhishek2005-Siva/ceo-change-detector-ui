@@ -517,3 +517,8 @@ td.empty { text-align: center; }
 .alog ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: .88rem; max-height: 220px; overflow: auto; }
 .alog time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 6px; }
 .alog .good { color: var(--green); } .alog .bad { color: var(--red); } .alog .warn { color: var(--amber); }
+
+.hero-points { list-style: none; margin: 26px 0 0; padding: 0; display: grid; gap: 10px; max-width: 70ch; color: var(--muted); }
+.hero-points li { padding-left: 22px; position: relative; }
+.hero-points li::before { content: '✓'; position: absolute; left: 0; color: var(--green); font-weight: 700; }
+.hero-points b { color: var(--text); }

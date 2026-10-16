@@ -92,9 +92,9 @@ export default function Explorer() {
     <>
       <section className="hero compact">
         <span className="eyebrow">Real output · {march.period.label}</span>
-        <h1>Results explorer</h1>
+        <h1>Test results</h1>
         <p className="lead">
-          Every CEO event the system flagged, plus every real one it missed, so you can judge it yourself. Click a row to read the sentence from the filing.
+          Every detector is graded on months it never saw while learning; the scoreboard for all of them is on the Overview. Below, the CEO detector (the most thoroughly tested) is shown event by event: everything it flagged, plus every real event it missed, so you can judge it yourself. Click a row to read the sentence from the filing.
         </p>
       </section>
 

@@ -17,7 +17,7 @@ const steps = [
   {
     n: 3,
     title: 'Send each section to the right AI readers',
-    body: 'Each type of event has its own AI detector, trained on real filings, and every filing is checked by all of them. CEO changes are read sentence by sentence by three readers that vote. Bankruptcy, delisting and CFO changes are read as a whole by several readers that average their answers. Earnings guidance is read from the attached press release.',
+    body: 'Each type of event has its own AI detector, trained on real filings, and every filing is checked by all eleven of them. Each only speaks up when its Item is in the filing. CEO changes are read sentence by sentence by three readers that vote. Bankruptcy, delisting and CFO changes are read as a whole by several readers that average their answers. Acquisitions, agreements, equity sales and restructuring each have their own readers, and earnings guidance is read from the attached press release.',
   },
   {
     n: 4,
@@ -34,8 +34,8 @@ const steps = [
 const glossary = [
   ['8-K', 'A short report US public companies file with the SEC when something important happens.'],
   ['Item', 'Form 8-K is split into numbered sections called Items. Each Item covers one kind of event, for example 5.02 for leadership changes.'],
-  ['Precision', 'When the AI says “this is CEO news”, how often is it right? High precision means few false alarms.'],
-  ['Recall', 'Of all the real CEO news, how much did the AI find? High recall means few misses.'],
+  ['Precision', 'When the AI says “this event happened”, how often is it right? High precision means few false alarms.'],
+  ['Recall', 'Of all the events that really happened, how many did the AI find? High recall means few misses.'],
   ['F1 score', 'One number (0 to 1) that balances precision and recall. Higher is better.'],
   ['Answer key', 'The correct answers we score against. Here, an independent large AI model labelled every filing separately.'],
   ['Held-out month', 'A month of filings the AI never saw while learning, like an exam with new questions.'],
@@ -63,7 +63,7 @@ export default function HowItWorks() {
       </ol>
 
       <section aria-labelledby="h-ex">
-        <h2 id="h-ex">A real example</h2>
+        <h2 id="h-ex">A real example: a CEO appointment</h2>
         <div className="card example">
           <p className="quote">
             <Highlight text={example} names={['Mark Van Genderen']} />
@@ -90,15 +90,15 @@ export default function HowItWorks() {
         <div className="grid-3">
           <div className="card">
             <h3>Look-alikes</h3>
-            <p>“Mr. Lee will <em>continue to serve</em> as CEO” sounds like CEO news but means nobody changed. Many of the system’s early mistakes were exactly this.</p>
+            <p>“Mr. Lee will <em>continue to serve</em> as CEO” sounds like CEO news but means nobody changed. In the same way, a filing that only <em>mentions</em> an old bankruptcy or an earlier delisting notice is not a new event. Many early mistakes were exactly this.</p>
           </div>
           <div className="card">
-            <h3>Other companies</h3>
-            <p>“…to focus on his role as CEO of Acme Corp” is about a different company. The AI has to know whose CEO is being discussed.</p>
+            <h3>Old news and other companies</h3>
+            <p>“…to focus on his role as CEO of Acme Corp” is about a different company, and a recap of last year’s lawsuit is not today’s. The AI has to know who and when. Dates in a filing are turned into “days before filing” so it can tell.</p>
           </div>
           <div className="card">
-            <h3>One sentence is not much</h3>
-            <p>Sometimes the title is in the previous sentence. Giving the AI neighbouring sentences was tried four times and made things worse, so it reads one sentence at a time.</p>
+            <h3>Many ways to say one thing</h3>
+            <p>“Moving to Executive Chairman” means the CEO is leaving the CEO job, even though nobody “resigned”. And “guidance is expected to increase” is not quite “guidance raised”. Detectors read the whole wording, and the evidence sentence lets you judge.</p>
           </div>
         </div>
       </section>
