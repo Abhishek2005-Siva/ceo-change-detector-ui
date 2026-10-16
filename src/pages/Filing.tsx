@@ -264,7 +264,7 @@ export default function Filing({ cik, accession }: { cik: string; accession: str
 
       {err ? (
         <div className="card err-card" role="alert">
-          <h3>{err.code === 'model_host' ? 'The model host has paused the model server' : err.code === 'not_configured' ? 'The model backend isn’t connected yet' : err.code === 'model_unreachable' || err.code === 'model_unavailable' ? 'The model is waking up' : 'We couldn’t analyze this filing'}</h3>
+          <h3>{err.code === 'model_offline' ? 'The model server is off' : err.code === 'model_host' ? 'The model host has paused the model server' : err.code === 'not_configured' ? 'The model backend isn’t connected yet' : err.code === 'model_unreachable' || err.code === 'model_unavailable' ? 'The model is waking up' : 'We couldn’t analyze this filing'}</h3>
           <p>{err.message}</p>
           <button type="button" className="btn primary" onClick={() => window.location.reload()}>Try again</button>
         </div>

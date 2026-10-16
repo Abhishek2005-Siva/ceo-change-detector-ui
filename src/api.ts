@@ -56,6 +56,8 @@ export interface ModelHealth {
   waking?: boolean
   error?: string | null
   hostError?: string
+  hostKind?: 'offline' | 'blocked'
+  hostCode?: string
   models?: ModelStatus[]
 }
 

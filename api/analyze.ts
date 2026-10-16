@@ -9,11 +9,12 @@ const SPACE = (process.env.MODEL_URL || '').replace(/\/$/, '')
 const TOKEN = process.env.MODEL_API_KEY || ''
 
 // Modal answers with plain text ("modal-http: workspace ... is disabled") when the host refuses to run the app.
-async function readJson(r: Response): Promise<{ body: any; hostError?: string }> {
+async function readJson(r: Response): Promise<{ body: any; hostError?: string; hostKind?: 'offline' | 'blocked'; hostCode?: string }> {
   const text = await r.text()
   // ngrok answers with its own error code when the tunnel is up but the model server behind it is not running.
-  if (r.headers.get('ngrok-error-code')) {
-    return { body: {}, hostError: 'The model server is not running right now. It is started on demand (Kaggle). Start it, wait a few minutes for the models to load, then try again.' }
+  const ngrokCode = r.headers.get('ngrok-error-code') || ''
+  if (ngrokCode) {
+    return { body: {}, hostKind: 'offline', hostCode: ngrokCode, hostError: 'The model server is not running right now. It starts on demand (on a free Kaggle GPU). Use “Turn on AI model” at the top, then wait about 12 minutes while it boots.' }
   }
   try {
     return { body: JSON.parse(text) }
@@ -23,7 +24,7 @@ async function readJson(r: Response): Promise<{ body: any; hostError?: string }>
       const msg = /disabled|spend|limit|billing|payment/i.test(m[1])
         ? 'The model host (Modal) has paused the workspace, most likely because its spend limit was reached. Raise the limit or add billing in the Modal dashboard, then try again.'
         : `The model host reported: ${m[1]}`
-      return { body: {}, hostError: msg }
+      return { body: {}, hostError: msg, hostKind: 'blocked' }
     }
     return { body: {} }
   }
@@ -45,8 +46,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'POST' && (req.body ?? {}).selftest) {
       // Runs every model once on the server; loads any that are not loaded yet, so it can take a while.
       const r = await call('/selftest', { method: 'POST', body: '{}', signal: AbortSignal.timeout(120000) })
-      const { body, hostError } = await readJson(r)
-      if (hostError) return res.status(503).json({ error: 'model_host', message: hostError })
+      const { body, hostError, hostKind } = await readJson(r)
+      if (hostError) return res.status(503).json({ error: hostKind === 'offline' ? 'model_offline' : 'model_host', message: hostError })
       return res.status(r.ok ? 200 : 502).json(body.results ? body : { ok: false })
     }
     if (req.method === 'POST') {
@@ -55,8 +56,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'bad_request', message: 'A valid CIK and accession number are required.' })
       }
       const r = await call('/jobs', { method: 'POST', body: JSON.stringify({ cik: String(cik), accession }) })
-      const { body, hostError } = await readJson(r)
-      if (hostError) return res.status(503).json({ error: 'model_host', message: hostError })
+      const { body, hostError, hostKind } = await readJson(r)
+      if (hostError) return res.status(503).json({ error: hostKind === 'offline' ? 'model_offline' : 'model_host', message: hostError })
       return res.status(r.status).json(r.ok ? body : { error: 'model_unavailable', message: body.detail || 'The model service is not ready.' })
     }
     if (one(req.query.health)) {
@@ -64,8 +65,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // answer "waking" after a few seconds and let the browser ask again.
       try {
         const r = await call('/health', { signal: AbortSignal.timeout(8000) })
-        const { body, hostError } = await readJson(r)
-        if (hostError) return res.status(200).json({ ok: false, hostError })
+        const { body, hostError, hostKind, hostCode } = await readJson(r)
+        if (hostError) return res.status(200).json({ ok: false, hostError, hostKind, hostCode })
         return res.status(200).json(Object.keys(body).length ? body : { ok: false, loading: true })
       } catch {
         return res.status(200).json({ ok: false, loading: true, waking: true })
@@ -74,8 +75,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const job = one(req.query.job)
     if (!/^[a-f0-9]{6,32}$/.test(job)) return res.status(400).json({ error: 'bad_request', message: 'Missing job id.' })
     const r = await call(`/jobs/${job}`)
-    const { body, hostError } = await readJson(r)
-    if (hostError) return res.status(503).json({ error: 'model_host', message: hostError })
+    const { body, hostError, hostKind } = await readJson(r)
+    if (hostError) return res.status(503).json({ error: hostKind === 'offline' ? 'model_offline' : 'model_host', message: hostError })
     return res.status(r.status).json(Object.keys(body).length ? body : { error: 'bad_response' })
   } catch (e) {
     // A sleeping Space can take a minute to wake; the UI shows this as "waking up".

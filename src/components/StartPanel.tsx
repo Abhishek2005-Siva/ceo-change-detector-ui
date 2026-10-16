@@ -4,7 +4,7 @@ import { hostCall, type HostAccounts, type StartResult } from '../host'
 interface Props {
   onClose: () => void
   onStarted: (r: StartResult) => void
-  onAlreadyRunning: () => void
+  onAlreadyRunning: (account: string) => void
 }
 
 const when = (iso: string) => {
@@ -69,7 +69,7 @@ export default function StartPanel({ onClose, onStarted, onAlreadyRunning }: Pro
           {data?.running && (
             <p className="explain good">
               A server is already running on <b>{data.running}</b>. If the site cannot reach it yet, it is probably still booting.
-              <button type="button" className="btn small" onClick={onAlreadyRunning}>Check now</button>
+              <button type="button" className="btn small" onClick={() => onAlreadyRunning(data.running!)}>Watch it start</button>
             </p>
           )}
 

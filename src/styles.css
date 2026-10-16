@@ -468,3 +468,31 @@ td.empty { text-align: center; }
 .hours { display: flex; gap: 8px; align-items: center; font-size: .9rem; }
 .hours select, .keyin { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; }
 .keyin { width: 100%; margin: 8px 0; }
+
+/* live start-up tracker */
+.power.starting.btn-like { border: 0; }
+.bootpanel { width: min(480px, calc(100vw - 32px)); }
+.block { display: block; }
+.bsteps { list-style: none; margin: 12px 0 8px; padding: 0; display: grid; gap: 2px; }
+.bsteps li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; padding: 7px 4px; font-size: .9rem; position: relative; }
+.bsteps li:not(:last-child)::after { content: ''; position: absolute; left: 16px; top: 30px; bottom: -6px; width: 2px; background: var(--border); }
+.bsteps small { color: var(--muted); font-size: .8rem; }
+.bdot { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: .8rem; font-weight: 700; border: 2px solid var(--border); background: var(--surface); color: var(--muted); z-index: 1; }
+.b-done .bdot { background: var(--green); border-color: var(--green); color: #fff; }
+.b-active .bdot { border-color: var(--amber); color: var(--amber); background: var(--amber-soft); animation: pulse 1.2s ease-in-out infinite; }
+.b-failed .bdot { background: var(--red); border-color: var(--red); color: #fff; }
+.b-todo { opacity: .6; }
+.b-failed b { color: var(--red); }
+.bmodels { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; padding: 0; }
+.bmodels li { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; padding: 3px 9px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.bmodels .mdot { margin-top: 0; width: 8px; height: 8px; }
+.bmodels .s-ready { background: var(--green-soft); color: var(--green); } .bmodels .s-ready .mdot { background: var(--green); }
+.bmodels .s-loading .mdot { background: var(--amber); animation: pulse 1.2s ease-in-out infinite; }
+.bmodels .s-error { background: var(--red-soft); color: var(--red); } .bmodels .s-error .mdot { background: var(--red); }
+.boot-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.bfoot { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--border); }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 1.2s ease-in-out infinite; flex: none; }
+.live-dot.bad { background: var(--red); animation: none; }
+.bevents { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: .84rem; }
+.bevents time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 6px; }
+.bevents .good { color: var(--green); } .bevents .bad { color: var(--red); } .bevents .warn { color: var(--amber); }

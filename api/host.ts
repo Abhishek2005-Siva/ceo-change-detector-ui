@@ -162,6 +162,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method', message: 'Use POST.' })
   const body = (req.body ?? {}) as { action?: string; account?: string; runHours?: number; dryRun?: boolean; except?: string }
   try {
+    if (body.action === 'progress') {
+      // light check used every few seconds while the server boots: just the Kaggle run status of one account
+      const def = ACCOUNTS.find((a) => a.id === body.account)
+      if (!def || !tokenOf(def)) return res.status(400).json({ error: 'bad_request', message: 'Unknown account.' })
+      try {
+        const st = await kaggle<{ status?: string; failureMessage?: string }>(tokenOf(def), kernelsApi, 'GetKernelSessionStatus', { userName: def.id, kernelSlug: KERNEL_SLUG })
+        return res.status(200).json({ account: def.id, status: st.status ?? 'NONE', failureMessage: st.failureMessage || undefined, kaggleUrl: `https://www.kaggle.com/code/${def.id}/${KERNEL_SLUG}` })
+      } catch {
+        return res.status(200).json({ account: def.id, status: 'NONE', kaggleUrl: `https://www.kaggle.com/code/${def.id}/${KERNEL_SLUG}` })
+      }
+    }
     const infos = await Promise.all(ACCOUNTS.map(inspect))
 
     if (body.action === 'accounts' || body.action === 'status') {
