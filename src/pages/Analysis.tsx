@@ -1,0 +1,205 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ApiError } from '../api'
+import { errorRow, rowFor, type Row } from '../batch/columns'
+import { getBatch, getPart, isLive, isResumable, remember, resumeBatch, stopBatch, type BatchMeta, type PartEntry } from '../batchApi'
+import ResultSheet from '../components/ResultSheet'
+import { fmtSecs } from '../hooks'
+
+const POLL_MS = 8000
+
+const STATUS: Record<BatchMeta['status'], { label: string; tone: string }> = {
+  queued: { label: 'Starting', tone: 'warn' },
+  collecting: { label: 'Collecting filings', tone: 'warn' },
+  running: { label: 'Running', tone: 'warn' },
+  done: { label: 'Finished', tone: 'good' },
+  stopped: { label: 'Stopped', tone: 'warn' },
+  interrupted: { label: 'Paused: server stopped', tone: 'bad' },
+  error: { label: 'Problem', tone: 'bad' },
+}
+
+export default function Analysis({ id }: { id: string }) {
+  const [meta, setMeta] = useState<BatchMeta | null>(null)
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [tick, setTick] = useState(0)
+  const entries = useRef(new Map<string, PartEntry>())
+  const have = useRef(0) // stored parts already downloaded
+  const samples = useRef<{ t: number; done: number }[]>([])
+  const [version, setVersion] = useState(0)
+  const [kick, setKick] = useState(0) // restarts the polling loop after Resume
+
+  const poll = useCallback(async () => {
+    try {
+      const m = await getBatch(id)
+      setErr('')
+      setMeta(m)
+      remember({ id, title: m.title, createdAt: m.createdAt })
+      const s = samples.current
+      if (isLive(m.status)) {
+        if (!s.length || s[s.length - 1].done !== m.done) s.push({ t: Date.now(), done: m.done })
+        if (s.length > 12) s.shift()
+      } else {
+        s.length = 0
+      }
+      let changed = false
+      while (have.current < m.parts) {
+        for (const e of await getPart(id, have.current)) entries.current.set(e.filing.accession, e) // a later part replaces an earlier one (retries)
+        have.current++
+        changed = true
+      }
+      if (changed) setVersion((v) => v + 1)
+      return m
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Could not reach the website. Retrying…')
+      return null
+    }
+  }, [id])
+
+  useEffect(() => {
+    entries.current = new Map()
+    have.current = 0
+    samples.current = []
+    setMeta(null)
+    setVersion(0)
+  }, [id])
+
+  useEffect(() => {
+    let stop = false
+    let timer = 0
+    const loop = async () => {
+      const m = await poll()
+      if (stop) return
+      if (m && !isLive(m.status)) return // nothing more will change until Resume is pressed
+      timer = window.setTimeout(() => void loop(), document.hidden ? POLL_MS * 4 : POLL_MS)
+    }
+    void loop()
+    const onVis = () => {
+      if (!document.hidden) {
+        window.clearTimeout(timer)
+        void loop()
+      }
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      stop = true
+      window.clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [id, poll, kick])
+
+  useEffect(() => {
+    if (!meta || !isLive(meta.status)) return
+    const t = window.setInterval(() => setTick((n) => n + 1), 1000)
+    return () => window.clearInterval(t)
+  }, [meta])
+
+  const rows: Row[] = useMemo(() => {
+    void version
+    return [...entries.current.values()].map((e) => (e.result ? rowFor(e.filing, e.result) : errorRow(e.filing, e.error ?? 'failed')))
+  }, [version])
+
+  const act = async (what: 'stop' | 'resume') => {
+    if (what === 'stop' && !window.confirm('Stop this analysis?\n\nWhat is finished so far stays here, and you can press Resume later to do the rest.')) return
+    setBusy(what)
+    setErr('')
+    try {
+      await (what === 'stop' ? stopBatch(id) : resumeBatch(id))
+      setKick((k) => k + 1)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'That did not work.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      window.prompt('Copy this link:', window.location.href)
+    }
+  }
+
+  void tick
+  if (!meta) {
+    return (
+      <section className="page">
+        <h1>Analysis</h1>
+        {err ? <p className="explain bad" role="alert">{err}</p> : <p className="muted">Loading this analysis…</p>}
+        <p><a className="btn" href="#/analyses">All my analyses</a></p>
+      </section>
+    )
+  }
+
+  const live = isLive(meta.status)
+  const st = STATUS[meta.status]
+  const pct = meta.total ? Math.min(100, Math.round((meta.done / meta.total) * 100)) : 0
+  const s = samples.current
+  const rate = s.length >= 2 && s[s.length - 1].t - s[0].t > 15000 && s[s.length - 1].done > s[0].done ? (s[s.length - 1].done - s[0].done) / ((s[s.length - 1].t - s[0].t) / 1000) : 0
+  const eta = rate && meta.total > meta.done ? (meta.total - meta.done) / rate : null
+  const age = Math.max(0, Math.round((Date.now() - meta.updatedAt) / 1000))
+  const fileBase = `filinglens_analysis_${id.slice(0, 6)}_${rows.length}filings`
+  const withEvents = rows.filter((r) => Number(r['Events found']) > 0).length
+  const about: [string, string][] = [
+    ['Created by', 'FilingLens (SEC 8-K event detector)'],
+    ['Analysis', meta.title],
+    ['Started', new Date(meta.createdAt).toLocaleString()],
+    ['Filings analyzed', String(rows.length)],
+    ['Filings with at least one event', String(withEvents)],
+    ['Status', `${st.label}${meta.total ? ` (${meta.done} of ${meta.total})` : ''}`],
+    ['How to read this', 'Each row is one SEC filing. Event columns show what the AI found, the person or detail, and in [brackets] how sure it is. Blank means nothing found for that event type.'],
+    ['Caveats', 'AI output with imperfect accuracy; check the evidence sentence and the SEC link. Experimental detectors (CFO, acquisitions, agreements, equity sales, guidance, restructuring) have thinner testing.'],
+  ]
+
+  return (
+    <section className="page analysis">
+      <p className="crumbs"><a href="#/search">← Search filings</a> · <a href="#/analyses">All my analyses</a></p>
+      <div className="analysis-head">
+        <div>
+          <h1>{meta.title}</h1>
+          <p className="muted small">Started {new Date(meta.createdAt).toLocaleString()}</p>
+        </div>
+        <span className={`pill-status ${st.tone}`}>{st.label}</span>
+      </div>
+
+      <div className="card analysis-card">
+        {meta.status === 'collecting' ? (
+          <p>Collecting every filing that matches the search… {meta.total ? `${meta.total.toLocaleString()} found so far` : ''}</p>
+        ) : (
+          <>
+            <div className="meter big" aria-hidden="true"><i style={{ width: `${Math.max(meta.status === 'done' ? 100 : 2, pct)}%` }} /></div>
+            <p>
+              <b>{meta.done.toLocaleString()}</b> of <b>{meta.total.toLocaleString()}</b> filings analyzed ({pct}%)
+              {meta.errors ? <> · <b className="bad-text">{meta.errors}</b> could not be read</> : null}
+              {live && eta != null ? <> · about {fmtSecs(eta)} left</> : null}
+              {live && eta == null ? <> · working out the time left…</> : null}
+            </p>
+          </>
+        )}
+
+        {live && (
+          <p className="explain good">
+            <b>You can close this page.</b> The analysis keeps running on the AI server. Open this same link (or “My analyses”) any time later and the finished results will be here. Link: <button type="button" className="linklike" onClick={() => void copy()}>{copied ? 'copied ✓' : 'copy link'}</button>
+            {meta.live ? <span className="muted"> · live, updated {age <= 2 ? 'just now' : `${age}s ago`}</span> : <span className="muted"> · last news from the server {fmtSecs(age)} ago</span>}
+          </p>
+        )}
+        {meta.status === 'interrupted' && <p className="explain bad" role="alert">{meta.message || 'The model server stopped before this analysis finished.'} Everything finished so far is kept below. To continue: turn the AI model on (top right), then press Resume.</p>}
+        {meta.status === 'stopped' && <p className="explain warn">Stopped. The {meta.done.toLocaleString()} filings finished so far are below. Press Resume to do the rest.</p>}
+        {meta.status === 'error' && <p className="explain bad" role="alert">{meta.message || 'Something went wrong.'}</p>}
+        {meta.status === 'done' && <p className="explain good">Finished{meta.errors ? `, but ${meta.errors} filing${meta.errors === 1 ? '' : 's'} could not be read (marked “Error” in the sheet)` : ''}. Download the sheet below.</p>}
+        {err && <p className="explain bad" role="alert">{err}</p>}
+
+        <div className="boot-actions">
+          {live && <button type="button" className="btn" onClick={() => void act('stop')} disabled={!!busy}>{busy === 'stop' ? 'Stopping…' : 'Stop analysis'}</button>}
+          {isResumable(meta.status) && (meta.done < meta.total || meta.total === 0 || meta.status === 'error') && <button type="button" className="btn primary" onClick={() => void act('resume')} disabled={!!busy}>{busy === 'resume' ? 'Resuming…' : 'Resume'}</button>}
+          {!live && <button type="button" className="btn" onClick={() => void copy()}>{copied ? 'Link copied ✓' : 'Copy link'}</button>}
+        </div>
+      </div>
+
+      {rows.length > 0 ? <ResultSheet rows={rows} fileBase={fileBase} about={about} /> : live && <p className="muted">The first rows appear here after the first {50} filings are done.</p>}
+    </section>
+  )
+}

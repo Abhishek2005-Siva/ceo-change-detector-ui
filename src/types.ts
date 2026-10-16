@@ -177,3 +177,22 @@ export interface SelfTestResult {
   ms?: number
   models: SelfTestModel[]
 }
+
+// ---- stored analyses (what the model server keeps per filing for the spreadsheet) ----
+export interface SlimEvent {
+  title: string
+  detail?: string
+  confidence?: number | null
+  evidence?: string | null
+  kind?: 'appointed' | 'resigned'
+  name?: string | null
+  interim?: boolean
+}
+
+export interface SlimResult {
+  filing: { items: string[] }
+  item502Found: boolean
+  appointed: Pick<Extraction, 'found' | 'name' | 'confidence' | 'sentence'>
+  resigned: Pick<Extraction, 'found' | 'name' | 'confidence' | 'sentence'>
+  detectors?: { key: string; applicable: boolean; found: boolean; events: SlimEvent[] }[]
+}

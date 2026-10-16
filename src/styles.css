@@ -496,3 +496,20 @@ td.empty { text-align: center; }
 .bevents { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: .84rem; }
 .bevents time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 6px; }
 .bevents .good { color: var(--green); } .bevents .bad { color: var(--red); } .bevents .warn { color: var(--amber); }
+
+/* background analyses */
+.page { padding-top: 28px; }
+.crumbs { font-size: .9rem; color: var(--muted); margin: 0 0 8px; }
+.analysis-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.analysis-head h1 { font-size: 1.5rem; }
+.pill-status { padding: 6px 14px; border-radius: 999px; font-weight: 650; font-size: .85rem; white-space: nowrap; }
+.pill-status.good { background: var(--green-soft); color: var(--green); }
+.pill-status.warn { background: var(--amber-soft); color: var(--amber); }
+.pill-status.bad { background: var(--red-soft); color: var(--red); }
+.analysis-card { display: grid; gap: 10px; margin: 14px 0 20px; }
+.analysis-card p { margin: 0; }
+.analysis-list { list-style: none; margin: 16px 0; padding: 0; display: grid; gap: 10px; }
+.analysis-list li { display: flex; justify-content: space-between; gap: 14px; align-items: center; flex-wrap: wrap; }
+.analysis-list li > div:first-child { flex: 1; min-width: 240px; display: grid; gap: 6px; }
+.analysis-list .boot-actions { margin: 0; }
+.sheet-more { margin: 10px 0 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }

@@ -93,4 +93,7 @@ while time.time() - t0 < RUN_HOURS * 3600:
     if time.time() - last_log > 1800:
         last_log = time.time()
         print(f"alive {int((time.time() - t0) / 60)} min, idle {int(idle)} min", flush=True)
+if _main._batches.active():  # hand over whatever an analysis has finished so far, so it can be resumed later
+    print("saving unfinished analyses before stopping", flush=True)
+    _main._batches.stop_all(f"The model server stopped ({reason}) before this analysis finished. Turn it on again and press Resume.")
 print(f"DONE_SERVER ({reason}; start the kernel again to continue)", flush=True)

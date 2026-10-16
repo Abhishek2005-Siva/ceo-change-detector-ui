@@ -1,4 +1,4 @@
-import type { AnalysisResult, DetectorResult, FilingRow } from '../types'
+import type { FilingRow, SlimResult } from '../types'
 
 export type Row = Record<string, string | number>
 
@@ -15,16 +15,18 @@ export type Column = (typeof COLUMNS)[number]
 
 const pct = (x?: number | null) => (x == null ? '' : `${(x * 100).toFixed(1)}%`)
 
-const det = (r: AnalysisResult, key: string): DetectorResult | undefined => (r.detectors ?? []).find((d) => d.key === key && d.applicable)
+type Det = NonNullable<SlimResult['detectors']>[number]
 
-const summarize = (d?: DetectorResult): string =>
+const det = (r: SlimResult, key: string): Det | undefined => (r.detectors ?? []).find((d) => d.key === key && d.applicable)
+
+const summarize = (d?: Det): string =>
   d && d.found ? d.events.map((e) => e.title + (e.detail ? ` (${e.detail})` : '') + (e.confidence != null ? ` [${pct(e.confidence)}]` : '')).join('; ') : ''
 
 const person = (name: string | null | undefined, conf?: number | null, interim?: boolean) =>
   `${name || 'Yes (name not stated)'}${interim ? ' (interim)' : ''}${conf != null ? ` [${pct(conf)}]` : ''}`
 
 /** One spreadsheet row for a filing that was analyzed. */
-export function rowFor(f: FilingRow, r: AnalysisResult): Row {
+export function rowFor(f: FilingRow, r: SlimResult): Row {
   const cfo = det(r, 'cfo')
   const cfoApp = cfo?.events.find((e) => e.kind === 'appointed')
   const cfoRes = cfo?.events.find((e) => e.kind === 'resigned')

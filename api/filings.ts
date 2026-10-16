@@ -42,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     }
     res.setHeader('Cache-Control', 'public, s-maxage=300')
-    return res.status(200).json({ total: rows.length, from: 0, pageSize: rows.length, filings: rows.slice(0, 200), company: { name: d.name, ticker: d.tickers?.[0] ?? '', cik: String(Number(cik)) } })
+    return res.status(200).json({ total: rows.length, from: 0, pageSize: rows.length, filings: one(req.query.all) ? rows : rows.slice(0, 200), company: { name: d.name, ticker: d.tickers?.[0] ?? '', cik: String(Number(cik)) } })
   } catch (e) {
     return res.status(502).json({ error: 'Could not reach the SEC.', detail: String(e) })
   }

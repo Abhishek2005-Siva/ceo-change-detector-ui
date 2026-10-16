@@ -6,24 +6,28 @@ import ModelLab from './pages/ModelLab'
 import Notes from './pages/Notes'
 import Search from './pages/Search'
 import Filing from './pages/Filing'
+import Analysis from './pages/Analysis'
+import Analyses from './pages/Analyses'
 import ModelPower from './components/ModelPower'
 
 const pages = [
   { id: 'overview', label: 'Overview', el: Overview },
   { id: 'search', label: 'Search filings', el: Search },
+  { id: 'analyses', label: 'My analyses', el: Analyses },
   { id: 'how', label: 'How it works', el: HowItWorks },
   { id: 'results', label: 'CEO test results', el: Explorer },
   { id: 'models', label: 'Why this model', el: ModelLab },
   { id: 'notes', label: 'Model notes', el: Notes },
 ] as const
 
-type Route = { page: string; cik?: string; accession?: string }
+type Route = { page: string; cik?: string; accession?: string; id?: string }
 
 const readRoute = (): Route => {
   const parts = window.location.hash.replace('#/', '').split('/')
   if (parts[0] === 'filing' && /^\d+$/.test(parts[1] ?? '') && /^\d{10}-\d{2}-\d{6}$/.test(parts[2] ?? '')) {
     return { page: 'filing', cik: parts[1], accession: parts[2] }
   }
+  if (parts[0] === 'analysis' && /^[0-9a-f]{16}$/.test(parts[1] ?? '')) return { page: 'analysis', id: parts[1] }
   return { page: pages.find((p) => p.id === parts[0])?.id ?? 'overview' }
 }
 
@@ -39,7 +43,7 @@ export default function App() {
     return () => window.removeEventListener('hashchange', on)
   }, [])
 
-  const active = route.page === 'filing' ? 'search' : route.page
+  const active = route.page === 'filing' ? 'search' : route.page === 'analysis' ? 'analyses' : route.page
   const Current = pages.find((p) => p.id === route.page)?.el
 
   return (
@@ -69,7 +73,7 @@ export default function App() {
         </div>
       </header>
       <main className="container">
-        {route.page === 'filing' ? <Filing key={route.accession} cik={route.cik!} accession={route.accession!} /> : Current && <Current />}
+        {route.page === 'filing' ? <Filing key={route.accession} cik={route.cik!} accession={route.accession!} /> : route.page === 'analysis' ? <Analysis key={route.id} id={route.id!} /> : Current && <Current />}
       </main>
       <footer className="footer">
         <div className="container">

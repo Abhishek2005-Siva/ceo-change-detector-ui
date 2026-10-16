@@ -10,7 +10,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 import re
@@ -25,10 +25,12 @@ API_KEY = os.getenv("API_KEY", "")
 CEO_HINT = re.compile(r"chief\s+executive|\bCEO\b|principal\s+executive|president", re.IGNORECASE)
 
 
-def _auth(authorization: str = Header(default="")) -> None:
+def _auth(request: Request, authorization: str = Header(default="")) -> None:
     if API_KEY and authorization != f"Bearer {API_KEY}":
         raise HTTPException(401, "Unauthorized")
-    _activity["t"] = time.time()
+    # Only real use keeps the server awake. Status checks (/health) must not, or an open status panel would stop it from ever sleeping.
+    if request.url.path != "/health":
+        _activity["t"] = time.time()
 
 
 app = FastAPI(title="Leadership Change Detector model service", dependencies=[Depends(_auth)])
@@ -51,6 +53,7 @@ def _load() -> None:
         _model["error"] = f"{type(exc).__name__}: {exc}"
     finally:
         _model["loading"] = False
+        _activity["t"] = time.time()  # the idle clock starts when the server is usable, not when it booted
 
 
 # Normally load in the background at startup. The Modal memory-snapshot path loads synchronously instead (MODEL_AUTOLOAD=0).
@@ -100,7 +103,7 @@ def _set(job: dict, **kw) -> None:
         job.update(kw)
 
 
-def _run(job: dict, cik: str, accession: str) -> None:
+def _run(job: dict, cik: str, accession: str, cache: bool = True) -> None:
     t0 = time.time()
     try:
         _set(job, stage="fetching", progress=0.05)
@@ -152,7 +155,8 @@ def _run(job: dict, cik: str, accession: str) -> None:
         _set(job, stage="detectors", progress=0.86, detail="Checking for other events…")
         result["detectors"] = run_all(text, tables_text, meta.filed, meta.company, exhibit, on_status)
         result["seconds"] = round(time.time() - t0, 1)
-        _cache[f"{cik}/{accession}"] = result
+        if cache:
+            _cache[f"{cik}/{accession}"] = result
         _set(job, stage="done", progress=1.0, result=result, t_end=time.time())
     except Exception as exc:
         _model["last_error"] = f"{type(exc).__name__}: {exc}"
@@ -192,6 +196,7 @@ def health() -> dict:
         "readers": _model["ensemble"].reader_names if _model["ensemble"] else [],
         "detectors": [{"key": f.key, "item": f.item, "title": f.title, "loaded": f.loaded} for f in REGISTRY],
         "models": _models_status(),
+        "batches": _batches.active(),
     }
 
 
@@ -231,6 +236,7 @@ def start_prewarm() -> None:
                 fam.ensure_loaded()
             except Exception:
                 pass  # recorded on the family (state "error") and shown in the status panel
+        _activity["t"] = time.time()  # all detectors are ready: the idle clock starts now
 
     threading.Thread(target=go, daemon=True).start()
 
@@ -259,3 +265,57 @@ def get_job(job_id: str) -> dict:
     if job is None:
         raise HTTPException(404, "Unknown job")
     return _view(job)
+
+
+# ---------------------------------------------------------------- background batches
+from .batch import BatchRunner  # noqa: E402
+
+
+def _analyze_sync(cik: str, accession: str) -> dict:
+    """Analyzes one filing and returns the full result (used by batches; blocks until done)."""
+    cached = _cache.get(f"{cik}/{accession}")
+    if cached is not None:
+        return cached
+    job = {"id": "batch", "stage": "queued", "progress": 0.0, "t0": time.time()}
+    _run(job, cik, accession, cache=False)  # not cached: a big batch would otherwise hold every filing's text in memory
+    if job.get("stage") == "done":
+        return job["result"]
+    raise RuntimeError(job.get("error") or "The analysis failed.")
+
+
+_batches = BatchRunner(_analyze_sync, lambda: _activity.__setitem__("t", time.time()), API_KEY, workers=int(os.getenv("BATCH_WORKERS", "4")))
+
+
+class BatchRequest(BaseModel):
+    id: str = Field(pattern=r"^[0-9a-f]{16}$")
+    base: str = Field(pattern=r"^https://[A-Za-z0-9.\-]+$")  # the website that stores the results
+    search: Optional[dict] = None
+    filings: Optional[list] = None
+    skip: list = []
+    part: int = 0
+
+
+@app.post("/batches")
+def start_batch(req: BatchRequest) -> dict:
+    if _model["ensemble"] is None:
+        raise HTTPException(503, "The model is still loading" if _model["loading"] else f"Model failed to load: {_model['error']}")
+    if req.search is None and req.filings is None:
+        raise HTTPException(400, "Give either a search or a list of filings.")
+    return _batches.start(req.id, req.base, req.search, req.filings, [str(a) for a in req.skip], req.part).view()
+
+
+@app.get("/batches/{batch_id}")
+def get_batch(batch_id: str) -> dict:
+    b = _batches.batches.get(batch_id)
+    if b is None:
+        raise HTTPException(404, "Unknown batch")
+    return b.view()
+
+
+@app.post("/batches/{batch_id}/stop")
+def stop_batch(batch_id: str) -> dict:
+    b = _batches.batches.get(batch_id)
+    if b is None:
+        raise HTTPException(404, "Unknown batch")
+    b.stop = True
+    return b.view()

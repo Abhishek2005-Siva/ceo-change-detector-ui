@@ -37,7 +37,6 @@ export default function ModelPower() {
       if (DEMO) return
       const left = readyUntil() - Date.now()
       setState((s) => {
-        if (s === 'on' && left <= 0) return 'off'
         if (s === 'off' && left > 0) return 'on'
         // another page (a filing waking the server) finished without us tracking it
         if (s === 'starting' && !live.current && getStartingAt() === null) return left > 0 ? 'on' : 'off'
@@ -53,6 +52,29 @@ export default function ModelPower() {
       window.removeEventListener('model-ready', tick)
       window.removeEventListener('model-starting', onStarting)
     }
+  }, [])
+
+  // The server may be on without this tab having started it (a background analysis keeps it busy), or may have shut
+  // itself down. Ask now and then; asking is only a status check and does not keep it awake.
+  useEffect(() => {
+    if (DEMO) return
+    const verify = async () => {
+      if (document.hidden || live.current) return
+      try {
+        const h = await modelHealth()
+        if (h.ok) {
+          if (h.models) setSum(summarize(h.models))
+          markReady()
+          setState((s) => (s === 'off' || s === 'error' ? 'on' : s))
+        } else if (h.hostError || h.hostKind) {
+          if (readyUntil() > 0) markOff()
+          setState((s) => (s === 'on' ? 'off' : s))
+        }
+      } catch { /* leave the badge as it is */ }
+    }
+    void verify()
+    const id = window.setInterval(() => void verify(), 60000)
+    return () => window.clearInterval(id)
   }, [])
 
   // While starting, refresh the tracker's clocks every second.
@@ -76,7 +98,7 @@ export default function ModelPower() {
   }, [state])
 
   const turnOff = async () => {
-    if (!window.confirm('Turn the model server off?\n\nThis stops the Kaggle GPU session for everyone using the site and frees the GPU hours. Starting it again takes about 12 minutes.')) return
+    if (!window.confirm('Turn the model server off?\n\nThis stops the Kaggle GPU session for everyone using the site and frees the GPU hours. An analysis that is still running will pause (what is finished is kept) and can be resumed later. Starting it again takes about 12 minutes.')) return
     setStopping(true)
     try {
       run.current++
