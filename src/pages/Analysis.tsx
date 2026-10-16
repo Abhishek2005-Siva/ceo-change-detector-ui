@@ -7,6 +7,44 @@ import { fmtSecs } from '../hooks'
 
 const POLL_MS = 8000
 
+interface LogLine {
+  t: number
+  text: string
+  tone: 'good' | 'bad' | 'warn' | ''
+}
+
+const ago = (ms: number) => fmtSecs(Math.max(0, Math.round(ms / 1000)))
+
+/** The line the activity log gets for the state seen on this check, or null when nothing is worth saying. */
+function describe(m: BatchMeta, prev: BatchMeta | null, lastLogAt: number): LogLine | null {
+  const now = Date.now()
+  const pct = m.total ? Math.round((m.done / m.total) * 100) : 0
+  const count = `${m.done.toLocaleString()} of ${m.total.toLocaleString()} filings analyzed (${pct}%)`
+  const errs = m.errors ? `, ${m.errors} could not be read` : ''
+  if (!prev) {
+    if (isLive(m.status)) {
+      return m.status === 'collecting'
+        ? { t: now, tone: 'warn', text: `You opened this while it is still running (started ${ago(now - m.createdAt)} ago). It is still collecting the list of filings${m.total ? `: ${m.total.toLocaleString()} found so far` : ''}.` }
+        : { t: now, tone: 'warn', text: `You opened this while it is still running (started ${ago(now - m.createdAt)} ago): ${count}${errs}.` }
+    }
+    if (m.status === 'done') return { t: now, tone: 'good', text: `Finished: ${count}${errs}.` }
+    if (m.status === 'stopped') return { t: now, tone: 'warn', text: `Stopped: ${count}${errs}. Press Resume to do the rest.` }
+    if (m.status === 'interrupted') return { t: now, tone: 'bad', text: `Paused because the server stopped: ${count}${errs}. Turn the AI model on, then press Resume.` }
+    return { t: now, tone: 'bad', text: `Stopped by a problem: ${count}${errs}. ${m.message ?? ''}`.trim() }
+  }
+  if (prev.status !== m.status) {
+    if (m.status === 'done') return { t: now, tone: 'good', text: `Finished: ${count}${errs}.` }
+    if (m.status === 'stopped') return { t: now, tone: 'warn', text: `Stopped: ${count}${errs}.` }
+    if (m.status === 'interrupted') return { t: now, tone: 'bad', text: `Paused because the server stopped: ${count}${errs}.` }
+    if (m.status === 'error') return { t: now, tone: 'bad', text: `Problem: ${m.message ?? 'something went wrong'}` }
+    if (m.status === 'running') return { t: now, tone: 'warn', text: `Analyzing now: ${count}.` }
+  }
+  if (isLive(m.status) && m.status === 'running' && (m.done !== prev.done || now - lastLogAt > 30000)) {
+    return { t: now, tone: '', text: `Still running: ${count}${errs}${m.live ? '' : ` (last news from the server ${ago(now - m.updatedAt)} ago)`}.` }
+  }
+  return null
+}
+
 const STATUS: Record<BatchMeta['status'], { label: string; tone: string }> = {
   queued: { label: 'Starting', tone: 'warn' },
   collecting: { label: 'Collecting filings', tone: 'warn' },
@@ -27,6 +65,9 @@ export default function Analysis({ id }: { id: string }) {
   const have = useRef(0) // stored parts already downloaded
   const samples = useRef<{ t: number; done: number }[]>([])
   const [version, setVersion] = useState(0)
+  const [log, setLog] = useState<LogLine[]>([])
+  const prevMeta = useRef<BatchMeta | null>(null)
+  const lastLogAt = useRef(0)
   const [kick, setKick] = useState(0) // restarts the polling loop after Resume
 
   const poll = useCallback(async () => {
@@ -34,6 +75,12 @@ export default function Analysis({ id }: { id: string }) {
       const m = await getBatch(id)
       setErr('')
       setMeta(m)
+      const line = describe(m, prevMeta.current, lastLogAt.current)
+      prevMeta.current = m
+      if (line) {
+        lastLogAt.current = line.t
+        setLog((l) => [line, ...l].slice(0, 14))
+      }
       remember({ id, title: m.title, createdAt: m.createdAt })
       const s = samples.current
       if (isLive(m.status)) {
@@ -60,7 +107,10 @@ export default function Analysis({ id }: { id: string }) {
     entries.current = new Map()
     have.current = 0
     samples.current = []
+    prevMeta.current = null
+    lastLogAt.current = 0
     setMeta(null)
+    setLog([])
     setVersion(0)
   }, [id])
 
@@ -191,6 +241,17 @@ export default function Analysis({ id }: { id: string }) {
         {meta.status === 'error' && <p className="explain bad" role="alert">{meta.message || 'Something went wrong.'}</p>}
         {meta.status === 'done' && <p className="explain good">Finished{meta.errors ? `, but ${meta.errors} filing${meta.errors === 1 ? '' : 's'} could not be read (marked “Error” in the sheet)` : ''}. Download the sheet below.</p>}
         {err && <p className="explain bad" role="alert">{err}</p>}
+
+        {log.length > 0 && (
+          <div className="alog" aria-live="polite">
+            <h4>Activity log</h4>
+            <ul>
+              {log.map((l, i) => (
+                <li key={`${l.t}-${i}`} className={l.tone}><time>{new Date(l.t).toLocaleTimeString()}</time> {l.text}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="boot-actions">
           {live && <button type="button" className="btn" onClick={() => void act('stop')} disabled={!!busy}>{busy === 'stop' ? 'Stopping…' : 'Stop analysis'}</button>}

@@ -513,3 +513,7 @@ td.empty { text-align: center; }
 .analysis-list li > div:first-child { flex: 1; min-width: 240px; display: grid; gap: 6px; }
 .analysis-list .boot-actions { margin: 0; }
 .sheet-more { margin: 10px 0 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.alog h4 { margin: 4px 0 6px; }
+.alog ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: .88rem; max-height: 220px; overflow: auto; }
+.alog time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 6px; }
+.alog .good { color: var(--green); } .alog .bad { color: var(--red); } .alog .warn { color: var(--amber); }
