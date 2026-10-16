@@ -11,12 +11,13 @@ export default function ModelPower() {
   const [secs, setSecs] = useState(0)
   const [msg, setMsg] = useState('')
   const stop = useRef(false)
-  const [panel, setPanel] = useState(false)
+  const [panel, setPanel] = useState(DEMO)
   const [sum, setSum] = useState<ReturnType<typeof summarize> | null>(DEMO ? summarize(DEMO_MODELS) : null)
 
   // Keep the badge honest: it turns "off" when the server has likely gone back to sleep.
   useEffect(() => {
     const tick = () => {
+      if (DEMO) return
       const left = readyUntil() - Date.now()
       setState((s) => (s === 'on' && left <= 0 ? 'off' : s === 'off' && left > 0 ? 'on' : s))
     }

@@ -401,7 +401,7 @@ td.empty { text-align: center; }
 .power.on.warm .power-dot { background: var(--amber); box-shadow: 0 0 0 3px var(--amber-soft); animation: pulse 1.2s ease-in-out infinite; }
 .power.on.bad { background: var(--red-soft); color: var(--red); }
 .power.on.bad .power-dot { background: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
-.mstatus { position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: min(440px, calc(100vw - 32px)); max-height: min(78vh, 640px); overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 12px 36px rgba(0,0,0,.28); padding: 14px 14px 12px; }
+.mstatus { position: absolute; left: 0; top: calc(100% + 8px); z-index: 40; width: min(440px, calc(100vw - 32px)); max-height: min(78vh, 640px); overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 12px 36px rgba(0,0,0,.28); padding: 14px 14px 12px; }
 .mstatus-head { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .mlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .mrow { display: grid; grid-template-columns: 14px 1fr auto; gap: 10px; align-items: start; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); }

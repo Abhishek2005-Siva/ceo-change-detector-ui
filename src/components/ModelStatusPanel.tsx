@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { modelHealth, runSelfTest } from '../api'
 import type { ModelStatus, SelfTestResult } from '../types'
 
@@ -29,6 +29,17 @@ export default function ModelStatusPanel({ onClose, onSummary }: { onClose: () =
   const [tests, setTests] = useState<Record<string, SelfTestResult>>({})
   const [testing, setTesting] = useState(false)
   const [err, setErr] = useState('')
+  const box = useRef<HTMLDivElement>(null)
+
+  // Keep the panel fully on screen wherever the header button ends up.
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el) return
+    el.style.transform = ''
+    const r = el.getBoundingClientRect()
+    const dx = r.left < 8 ? 8 - r.left : r.right > window.innerWidth - 8 ? window.innerWidth - 8 - r.right : 0
+    if (dx) el.style.transform = `translateX(${dx}px)`
+  })
 
   const refresh = useCallback(async () => {
     if (DEMO) {
@@ -76,7 +87,7 @@ export default function ModelStatusPanel({ onClose, onSummary }: { onClose: () =
   const sum = models ? summarize(models) : null
 
   return (
-    <div className="mstatus" role="dialog" aria-label="Model status">
+    <div className="mstatus" role="dialog" aria-label="Model status" ref={box}>
       <div className="mstatus-head">
         <div>
           <b>Model status</b>
