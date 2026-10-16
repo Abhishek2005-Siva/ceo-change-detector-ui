@@ -1,4 +1,4 @@
-import type { Company, JobStatus, SearchResponse } from './types'
+import type { Company, JobStatus, ModelStatus, SearchResponse, SelfTestResult } from './types'
 
 export class ApiError extends Error {
   code: string
@@ -55,6 +55,8 @@ export interface ModelHealth {
   loading?: boolean
   waking?: boolean
   error?: string | null
+  hostError?: string
+  models?: ModelStatus[]
 }
 
 /** Asks the model service if it is ready. Asking also wakes it if it is asleep. */
@@ -63,4 +65,12 @@ export async function modelHealth(): Promise<ModelHealth> {
   const body = await r.json().catch(() => ({}))
   if (r.status === 503 && body.error === 'not_configured') throw new ApiError('not_configured', body.message)
   return body as ModelHealth
+}
+
+/** Runs every model once on the server and reports which ones work. */
+export async function runSelfTest(): Promise<{ ok: boolean; results: SelfTestResult[]; models: ModelStatus[] }> {
+  const r = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selftest: true }) })
+  const body = await r.json().catch(() => ({}))
+  if (!r.ok) throw new ApiError(body.error ?? 'error', body.message ?? 'The self-test could not run.')
+  return body
 }

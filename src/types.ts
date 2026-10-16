@@ -143,3 +143,33 @@ export interface JobStatus {
   result?: AnalysisResult
   error?: string
 }
+
+// ---- model status sign ----
+export type ModelState = 'ready' | 'loading' | 'off' | 'error'
+
+export interface ModelStatus {
+  key: string
+  item: string
+  title: string
+  state: ModelState
+  error?: string | null
+  lastError?: string | null
+  adapters: number
+  loadSeconds?: number | null
+  readers?: string[]
+}
+
+export interface SelfTestModel {
+  name: string
+  ok: boolean
+  ms: number
+  error?: string | null
+}
+
+export interface SelfTestResult {
+  key: string
+  ok: boolean
+  error?: string
+  ms?: number
+  models: SelfTestModel[]
+}

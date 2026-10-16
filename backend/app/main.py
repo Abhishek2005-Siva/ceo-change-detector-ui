@@ -17,7 +17,7 @@ import re
 
 from .item502 import ITEM_HEADING_RE, find_item_502_section, split_sentences
 from .detect.fetch import fetch_all
-from .detect.registry import REGISTRY, run_all
+from .detect.registry import REGISTRY, run_all, selftest_family
 from .sec_fetch import filing_txt_url
 
 API_KEY = os.getenv("API_KEY", "")
@@ -35,14 +35,16 @@ _pool = ThreadPoolExecutor(max_workers=1)
 _jobs: Dict[str, dict] = {}
 _cache: Dict[str, dict] = {}
 _lock = threading.Lock()
-_model = {"ensemble": None, "error": None, "loading": True}
+_model = {"ensemble": None, "error": None, "loading": True, "load_seconds": None, "last_error": None}
 
 
 def _load() -> None:
+    t0 = time.time()
     try:
         from .ensemble import Ensemble
 
         _model["ensemble"] = Ensemble()
+        _model["load_seconds"] = round(time.time() - t0, 1)
     except Exception as exc:  # surfaced via /health so the UI can explain it
         _model["error"] = f"{type(exc).__name__}: {exc}"
     finally:
@@ -151,7 +153,25 @@ def _run(job: dict, cik: str, accession: str) -> None:
         _cache[f"{cik}/{accession}"] = result
         _set(job, stage="done", progress=1.0, result=result, t_end=time.time())
     except Exception as exc:
+        _model["last_error"] = f"{type(exc).__name__}: {exc}"
         _set(job, stage="error", t_end=time.time(), error=f"{type(exc).__name__}: {exc}")
+
+
+def _models_status() -> list:
+    """One entry per detector: ready / loading / off (not loaded yet) / error, so the website can show a status sign."""
+    ens = _model["ensemble"]
+    ceo_state = "ready" if ens is not None else "error" if _model["error"] else "loading"
+    out = [{
+        "key": "ceo", "item": "5.02", "title": "CEO appointed or leaving", "state": ceo_state, "error": _model["error"],
+        "lastError": _model["last_error"], "adapters": 3, "loadSeconds": _model["load_seconds"],
+        "readers": ens.reader_names if ens else [],
+    }]
+    for f in REGISTRY:
+        out.append({
+            "key": f.key, "item": f.item, "title": f.title, "state": f.state, "error": f.error, "lastError": f.last_error,
+            "adapters": len(f.models), "loadSeconds": f.load_seconds, "readers": [],
+        })
+    return out
 
 
 @app.get("/health")
@@ -162,7 +182,35 @@ def health() -> dict:
         "error": _model["error"],
         "readers": _model["ensemble"].reader_names if _model["ensemble"] else [],
         "detectors": [{"key": f.key, "item": f.item, "title": f.title, "loaded": f.loaded} for f in REGISTRY],
+        "models": _models_status(),
     }
+
+
+@app.post("/selftest")
+def selftest() -> dict:
+    """Runs every model once and reports which work. Loads any detector that has not loaded yet."""
+    results = []
+    ens = _model["ensemble"]
+    if ens is None:
+        results.append({"key": "ceo", "ok": False, "error": _model["error"] or "still loading", "models": []})
+    else:
+        import torch
+
+        models = []
+        for r in ens.readers:
+            try:
+                t = time.time()
+                enc = r.tok(["The Company announced a change on March 3, 2025."], truncation=True, max_length=64, return_tensors="pt")
+                with torch.inference_mode():
+                    logits = r.model(**enc).logits
+                good = logits.shape[-1] == 3 and bool(torch.isfinite(logits).all())
+                models.append({"name": r.name, "ok": good, "ms": round((time.time() - t) * 1000), "error": None if good else "unexpected output"})
+            except Exception as exc:
+                models.append({"name": r.name, "ok": False, "ms": 0, "error": f"{type(exc).__name__}: {exc}"})
+        results.append({"key": "ceo", "ok": all(m["ok"] for m in models), "models": models})
+    for fam in REGISTRY:
+        results.append(selftest_family(fam))
+    return {"ok": all(r["ok"] for r in results), "results": results, "models": _models_status()}
 
 
 def start_prewarm() -> None:
@@ -173,7 +221,7 @@ def start_prewarm() -> None:
             try:
                 fam.ensure_loaded()
             except Exception:
-                pass  # surfaced per-detector when a filing needs it
+                pass  # recorded on the family (state "error") and shown in the status panel
 
     threading.Thread(target=go, daemon=True).start()
 

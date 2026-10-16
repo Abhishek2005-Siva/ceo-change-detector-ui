@@ -93,6 +93,10 @@ class Family:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._loaded = False
+        self.state = "off"          # off (not loaded yet) | loading | ready | error
+        self.error: Optional[str] = None       # why loading failed
+        self.last_error: Optional[str] = None  # last failure while analysing a filing
+        self.load_seconds: Optional[float] = None
 
     @property
     def loaded(self) -> bool:
@@ -100,9 +104,20 @@ class Family:
 
     def ensure_loaded(self) -> None:
         with self._lock:
-            if not self._loaded:
+            if self._loaded:
+                return
+            self.state, t0 = "loading", time.time()
+            try:
                 self._load_models()
-                self._loaded = True
+            except Exception as exc:
+                self.state, self.error = "error", f"{type(exc).__name__}: {exc}"
+                raise
+            self._loaded, self.state, self.error = True, "ready", None
+            self.load_seconds = round(time.time() - t0, 1)
+
+    def test_models(self) -> list:
+        """[(display name, tokenizer, model, expected number of labels)] for the self-test; override per family."""
+        return []
 
     def _load_models(self) -> None:
         raise NotImplementedError
@@ -131,6 +146,10 @@ class DistressFamily(Family):
         for folder, max_len, name in self.spec:
             tok, model, _ = _load(folder, len(ctxmod.ITEM_CFG[self.item]["labels"]))
             self._m.append((tok, model, max_len, name))
+
+    def test_models(self) -> list:
+        n = len(ctxmod.ITEM_CFG[self.item]["labels"])
+        return [(name, tok, model, n) for tok, model, _, name in self._m]
 
     def run(self, plain: str, tables: str, filing_date: str, **ctx) -> dict:
         t0 = time.time()
@@ -211,6 +230,9 @@ class SentenceFamily(Family):
     def _load_models(self) -> None:
         self._tok, self._model, meta = _load(self.folder, len(self.mod.LABELS))
         self._thr = meta.get("thresholds", 0.5)
+
+    def test_models(self) -> list:
+        return [(self.folder, self._tok, self._model, len(self.mod.LABELS))]
 
     def _analyze(self, plain: str, tables: str):
         section = find_item_section(tables, self.item)

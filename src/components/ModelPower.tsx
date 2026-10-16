@@ -2,14 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, modelHealth } from '../api'
 import { clearStarting, coldEstimate, getStartingAt, markReady, markStarting, readyUntil, recordCold } from '../modelState'
 import { fmtSecs } from '../hooks'
+import ModelStatusPanel, { DEMO, DEMO_MODELS, summarize } from './ModelStatusPanel'
 
 type State = 'off' | 'starting' | 'on' | 'error' | 'missing'
 
 export default function ModelPower() {
-  const [state, setState] = useState<State>(() => (getStartingAt() !== null ? 'starting' : readyUntil() > Date.now() ? 'on' : 'off'))
+  const [state, setState] = useState<State>(() => (DEMO ? 'on' : getStartingAt() !== null ? 'starting' : readyUntil() > Date.now() ? 'on' : 'off'))
   const [secs, setSecs] = useState(0)
   const [msg, setMsg] = useState('')
   const stop = useRef(false)
+  const [panel, setPanel] = useState(false)
+  const [sum, setSum] = useState<ReturnType<typeof summarize> | null>(DEMO ? summarize(DEMO_MODELS) : null)
 
   // Keep the badge honest: it turns "off" when the server has likely gone back to sleep.
   useEffect(() => {
@@ -39,6 +42,13 @@ export default function ModelPower() {
 
   useEffect(() => () => { stop.current = true }, [])
 
+  // The server is already awake (we saw it ready moments ago): fetch the status once so the sign can show counts.
+  useEffect(() => {
+    if (DEMO || state !== 'on' || sum) return
+    modelHealth().then((h) => h.models && setSum(summarize(h.models))).catch(() => undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state])
+
   const turnOn = useCallback(async () => {
     stop.current = false
     markStarting()
@@ -49,7 +59,14 @@ export default function ModelPower() {
     for (let i = 0; i < 60 && !stop.current; i++) {
       try {
         const h = await modelHealth()
+        if (h.hostError) {
+          clearStarting()
+          setMsg(h.hostError)
+          setState('error')
+          return
+        }
         if (h.ok) {
+          if (h.models) setSum(summarize(h.models))
           recordCold((performance.now() - t0) / 1000)
           markReady()
           setState('on')
@@ -77,10 +94,16 @@ export default function ModelPower() {
   }, [])
 
   if (state === 'on') {
+    const bad = !!sum && sum.problems > 0
+    const warming = !!sum && sum.loading > 0 && !bad
     return (
-      <div className="power on" role="status">
-        <span className="power-dot" /> AI model on
-        <small>sleeps after ~3 min idle</small>
+      <div className="power-wrap">
+        <button type="button" className={`power on btn-like ${bad ? 'bad' : warming ? 'warm' : ''}`} onClick={() => setPanel((v) => !v)} aria-expanded={panel} aria-haspopup="dialog">
+          <span className="power-dot" />
+          {bad ? `${sum!.problems} model${sum!.problems === 1 ? '' : 's'} with a problem` : sum ? `AI models on · ${sum.ready}/${sum.total} ready` : 'AI models on'}
+          <small>{panel ? 'hide' : 'details'} ▾</small>
+        </button>
+        {panel && <ModelStatusPanel onClose={() => setPanel(false)} onSummary={setSum} />}
       </div>
     )
   }
@@ -96,12 +119,19 @@ export default function ModelPower() {
     return <div className="power error" role="status">Model not connected</div>
   }
   return (
-    <button type="button" className={`power-btn ${state === 'error' ? 'error' : ''}`} onClick={() => void turnOn()} title={msg || 'Wake the AI model server so filings are analyzed straight away'}>
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
-        <path d="M12 3v9" />
-        <path d="M6.4 6.6a8 8 0 1 0 11.2 0" />
-      </svg>
-      {state === 'error' ? 'Retry: turn on model' : 'Turn on AI model'}
-    </button>
+    <div className="power-wrap">
+      <button type="button" className={`power-btn ${state === 'error' ? 'error' : ''}`} onClick={() => void turnOn()} title={msg || 'Wake the AI model server so filings are analyzed straight away'}>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+          <path d="M12 3v9" />
+          <path d="M6.4 6.6a8 8 0 1 0 11.2 0" />
+        </svg>
+        {state === 'error' ? 'Retry: turn on model' : 'Turn on AI model'}
+      </button>
+      {state === 'error' && msg && (
+        <div className="mstatus" role="alert">
+          <p className="explain bad"><b>The model server could not start.</b> {msg}</p>
+        </div>
+      )}
+    </div>
   )
 }

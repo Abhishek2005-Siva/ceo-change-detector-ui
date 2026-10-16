@@ -87,6 +87,9 @@ class Acquisition(Family):
         self._sent = _load("acq_sent", 5)
         self._doc = _load("acq_doc", 4)
 
+    def test_models(self) -> list:
+        return [("Sentence reader · RoBERTa-base", *self._sent[:2], 5), ("Direction reader · RoBERTa-large", *self._doc[:2], 4)]
+
     def run(self, plain: str, tables: str, filing_date: str, **ctx) -> dict:
         t0 = time.time()
         text = normalize_filing_text(plain)
@@ -156,6 +159,9 @@ class Agreements(Family):
         self._ev = _load("agree_events", 3)
         self._ty = _load("agree_types", 5)
 
+    def test_models(self) -> list:
+        return [("Event reader · RoBERTa-base", *self._ev[:2], 3), ("Type reader · RoBERTa-base", *self._ty[:2], 5)]
+
     def run(self, plain: str, tables: str, filing_date: str, **ctx) -> dict:
         t0 = time.time()
         text = normalize_filing_text(plain)
@@ -210,6 +216,9 @@ class Equity(Family):
     def _load_models(self) -> None:
         self._ev = _load("equity_events", 2)
         self._ty = _load("equity_types", 6)
+
+    def test_models(self) -> list:
+        return [("Sale reader · RoBERTa-base", *self._ev[:2], 2), ("Type reader · RoBERTa-base", *self._ty[:2], 6)]
 
     def run(self, plain: str, tables: str, filing_date: str, **ctx) -> dict:
         t0 = time.time()
@@ -271,6 +280,9 @@ class Guidance(Family):
     def present(self, plain: str, tables: str) -> bool:
         return find_item_section(plain, "2.02") is not None
 
+    def test_models(self) -> list:
+        return [("Guidance reader · RoBERTa-large", *self._m[:2], 5)]
+
     def _load_models(self) -> None:
         self._m = _load("guidance", 5)
 
@@ -311,6 +323,9 @@ class Restructuring(Family):
 
     def _load_models(self) -> None:
         self._m = _load("restructuring", 6)
+
+    def test_models(self) -> list:
+        return [("Type reader · RoBERTa-large", *self._m[:2], 6)]
 
     def run(self, plain: str, tables: str, filing_date: str, **ctx) -> dict:
         t0 = time.time()
