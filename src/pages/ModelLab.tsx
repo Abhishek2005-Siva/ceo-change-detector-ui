@@ -27,9 +27,9 @@ export default function ModelLab() {
     <>
       <section className="hero compact">
         <span className="eyebrow">Model selection</span>
-        <h1>Why this model won</h1>
+        <h1>Why these models</h1>
         <p className="lead">
-          Dozens of models and variations were built and tested. Each was graded on months it had never seen. The one below is the best result found so far.
+          Dozens of models and variations were built and tested for each type of event. Each was graded on months it had never seen. FilingLens uses the best honestly-measured one for each. The CEO detector, the most thoroughly tuned, is shown below; the full list is under Model notes.
         </p>
       </section>
 

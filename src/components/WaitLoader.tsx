@@ -14,10 +14,11 @@ const STEPS = [
   { id: 'wake', label: 'Start the AI model', hint: 'Only needed when it has been idle' },
   { id: 'fetching', label: 'Download the filing from the SEC', hint: '' },
   { id: 'locating', label: 'Find the leadership section (Item 5.02)', hint: '' },
-  { id: 'reading', label: 'Three AI readers read every sentence', hint: '' },
+  { id: 'reading', label: 'AI readers check for a CEO change', hint: '' },
+  { id: 'detectors', label: 'Check for other events (bankruptcy, delisting, auditor, votes)', hint: '' },
 ] as const
 
-const rank: Record<string, number> = { queued: 1, fetching: 1, locating: 2, splitting: 3, reading: 3, done: 4 }
+const rank: Record<string, number> = { queued: 1, fetching: 1, locating: 2, splitting: 3, reading: 3, detectors: 4, done: 5 }
 
 export default function WaitLoader({ job, waking, wasAsleep }: Props) {
   const now = useNow(200)
@@ -49,7 +50,8 @@ export default function WaitLoader({ job, waking, wasAsleep }: Props) {
     eta = sync.current.eta - since
     late = eta <= 0 && job.stage !== 'done'
     pct = 0.25 + 0.75 * (job.progress ?? 0)
-    if (job.stage === 'reading' && job.unitsTotal) {
+    if (job.stage === 'detectors') detail = job.detail ?? 'Checking for other events…'
+    else if (job.stage === 'reading' && job.unitsTotal) {
       const n = job.sentenceCount ?? 0
       const perReader = Math.max(1, n)
       const done = job.unitsDone ?? 0

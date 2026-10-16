@@ -21,6 +21,39 @@ export interface NoteGroup {
 
 export const noteGroups: NoteGroup[] = [
   {
+    id: 'site-models',
+    title: 'Models running on FilingLens (selected as the best for each event type)',
+    summary:
+      'For each type of event the best honestly-measured model was chosen (held-out months, fixed 0.5 threshold unless noted). All run on CPU on the model server. Adapters are fine-tuned LoRA layers stored privately; the public base models are RoBERTa and DeBERTa-v3.',
+    tables: [
+      {
+        id: 'site-selected',
+        title: 'Selected models, what they read, and how they were chosen',
+        columns: ['Event type', 'Item', 'Model deployed', 'Input to the model', 'Decision rule', 'Why this one'],
+        rows: [
+          ['CEO appointed / leaving', '5.02', 'RoBERTa-large seed 7 + RoBERTa-large seed 123 + DeBERTa-v3-base seed 42', 'One sentence at a time (max 320 tokens)', 'A reader’s vote counts at ≥ 0.70 confidence; flagged if ≥ 2 of 3 agree', 'Best of every CEO variant: 0.8673 average F1 over four unseen months'],
+          ['Bankruptcy / receivership', '1.03', 'RoBERTa-large (seed 42) + DeBERTa-v3-base (seed 42), both with date-offset input', 'The whole Item section (up to 1,900 characters), dates written as “[D-54]” = days before filing', 'Mean probability ≥ 0.5 per label', 'Mixed architecture beat same-architecture seed ensembles; 94.7% right / 96.0% found at the fixed 0.5 threshold'],
+          ['Delisting / listing notice', '3.01', 'RoBERTa-large (seed 42) + RoBERTa-large (seed 7) + DeBERTa-v3-base (seed 42)', 'The whole Item section, date offsets', 'Mean probability ≥ 0.5 per label', 'Best honest 3.01 ensemble; adding RoBERTa-base lowered exchange-delisting precision'],
+          ['Change of auditor', '4.01', 'RoBERTa-base v1 (LoRA r=16) + rule engine', 'One sentence at a time (max 320 tokens)', 'Per-label thresholds tuned on validation; flag if model OR rules', 'RoBERTa-large and DeBERTa were not better and were 2–3× slower'],
+          ['Shareholder vote results', '5.07', 'RoBERTa-base v2 (LoRA r=16) + rule engine + vote-table parser', 'One sentence or proposal paragraph at a time; vote tables are parsed separately', 'Per-label thresholds; flag if model OR rules', 'v2 scored on two fresh months, v1 on earlier ones; model ≈ rules, union marginally best'],
+        ],
+        footnote: 'Selection used the per-item trackers and logs in the training project. Models that were tested but not selected are listed under “Other 8-K item detectors”.',
+      },
+      {
+        id: 'site-metrics',
+        title: 'Held-out results for the detectors on the site',
+        columns: ['Detector', 'Test set', 'Result'],
+        rows: [
+          ['CEO (5.02)', 'March 2025, 5,626 filings, 105 appointed / 87 resigned events', 'Appointed P 94.7% R 84.8% F1 0.894 · Resigned P 95.8% R 79.3% F1 0.868'],
+          ['Bankruptcy (1.03)', '149 events, 7 held-out windows (2024–2026)', 'Any event: P 0.947 R 0.960 at 0.5 (threshold-tuned: P 0.959 R 0.946); Petition P 0.962 R 0.935; Plan confirmed P 0.944 R 1.0; Receivership P 1.0 R 0.778 (n = 9)'],
+          ['Delisting (3.01)', '477 events, 4 held-out months', 'Deficiency P 0.967 R 0.916 · Exchange delisting P 0.902 R 0.892 · Voluntary P 0.946 R 0.986 · Transfer P 0.739 R 0.895 · Compliance regained P 0.872 R 1.0'],
+          ['Auditor (4.01)', '348 filings, 5 held-out months', 'F1: dismissed 0.986 · resigned 0.972 · engaged 0.982 · reportable event 0.981 · opinion modified 0.933; auditor names correct 94% / 91%'],
+          ['Votes (5.07)', '589 filings, June 2025 and June 2026', 'F1: directors 0.989 · auditor 0.991 · say-on-pay 0.994 · frequency 0.981 · equity plan 0.964 · charter 0.850 · merger 0.769 · share issuance 0.793 · shareholder proposal 0.958 · adjournment 0.780 · special meeting 0.912 · any failed 0.857'],
+        ],
+      },
+    ],
+  },
+  {
     id: 'ceo-history',
     title: 'CEO detector — version history (Item 5.02)',
     summary:

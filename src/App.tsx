@@ -12,7 +12,7 @@ const pages = [
   { id: 'overview', label: 'Overview', el: Overview },
   { id: 'search', label: 'Search filings', el: Search },
   { id: 'how', label: 'How it works', el: HowItWorks },
-  { id: 'results', label: 'Test results', el: Explorer },
+  { id: 'results', label: 'CEO test results', el: Explorer },
   { id: 'models', label: 'Why this model', el: ModelLab },
   { id: 'notes', label: 'Model notes', el: Notes },
 ] as const
@@ -46,7 +46,7 @@ export default function App() {
     <>
       <header className="topbar">
         <div className="topbar-inner">
-          <a className="brand" href="#/overview" aria-label="Leadership Change Detector home">
+          <a className="brand" href="#/overview" aria-label="FilingLens home">
             <span className="brand-mark" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="8" r="3.5" />
@@ -54,8 +54,8 @@ export default function App() {
               </svg>
             </span>
             <span>
-              Leadership Change Detector
-              <small>SEC 8-K filings · CEO appointed / resigned</small>
+              FilingLens
+              <small>See what happened in any SEC 8-K</small>
             </span>
           </a>
           <nav aria-label="Main">
@@ -73,7 +73,7 @@ export default function App() {
       </main>
       <footer className="footer">
         <div className="container">
-          Search results come live from the SEC’s public EDGAR database. Accuracy figures are measured against an independent answer key produced by a separate large AI model, not hand-checked by people.
+          FilingLens reads public filings from the SEC’s EDGAR database. It is a research tool, not financial or legal advice. Accuracy figures come from held-out test months scored against answer keys built from a separate large AI model plus rules, with disagreements hand-checked for some detectors, so treat them as strong estimates rather than guarantees.
         </div>
       </footer>
     </>

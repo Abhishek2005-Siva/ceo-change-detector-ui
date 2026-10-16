@@ -23,13 +23,22 @@ const PRESETS: [string, string, () => [string, string]][] = [
   ['mar25', 'March 2025 (test month)', () => ['2025-03-01', '2025-03-31']],
 ]
 
+const EVENT_TYPES: [string, string][] = [
+  ['', 'Any filing'],
+  ['5.02', 'Leadership changes (CEO, CFO, directors)'],
+  ['1.03', 'Bankruptcy or receivership'],
+  ['3.01', 'Delisting or listing notice'],
+  ['4.01', 'Change of auditor'],
+  ['5.07', 'Shareholder vote results'],
+]
+
 const PAGE = 100
 
 export default function Search() {
   const saved = memory.search
   const [preset, setPreset] = useState('30d')
   const [params, setParams] = useState<SearchParams>(
-    saved?.params ?? { q: '', forms: '8-K', start: daysAgo(30), end: iso(new Date()), cik: '', leadership: true, from: 0 },
+    saved?.params ?? { q: '', forms: '8-K', start: daysAgo(30), end: iso(new Date()), cik: '', item: '5.02', from: 0 },
   )
   const [company, setCompany] = useState<Company | null>(saved?.company ?? null)
   const [resp, setResp] = useState<SearchResponse | null>(saved?.response ?? null)
@@ -128,9 +137,11 @@ export default function Search() {
           </label>
         </div>
         <div className="sform-foot">
-          <label className="check-line">
-            <input type="checkbox" checked={params.leadership} onChange={(e) => setParams({ ...params, leadership: e.target.checked })} />
-            <span>Only filings about <b>leadership changes</b> (Item 5.02)</span>
+          <label className="field inline">
+            <span>Type of event</span>
+            <select value={params.item} onChange={(e) => setParams({ ...params, item: e.target.value })}>
+              {EVENT_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
           </label>
           <button type="submit" className="btn primary" disabled={loading}>{loading ? 'Searching…' : 'Search'}</button>
         </div>

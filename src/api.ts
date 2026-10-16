@@ -20,17 +20,17 @@ export interface SearchParams {
   start: string
   end: string
   cik: string
-  leadership: boolean
+  item: string
   from: number
 }
 
 export async function searchFilings(p: SearchParams): Promise<SearchResponse> {
   // Browsing one company with no keywords uses the company filing list (complete and fast).
   if (p.cik && !p.q.trim()) {
-    const qs = new URLSearchParams({ cik: p.cik, forms: p.forms, start: p.start, end: p.end, leadership: p.leadership ? '1' : '0' })
+    const qs = new URLSearchParams({ cik: p.cik, forms: p.forms, start: p.start, end: p.end, item: p.item })
     return json(await fetch(`/api/filings?${qs}`))
   }
-  const qs = new URLSearchParams({ q: p.q, forms: p.forms, start: p.start, end: p.end, cik: p.cik, leadership: p.leadership ? '1' : '0', from: String(p.from) })
+  const qs = new URLSearchParams({ q: p.q, forms: p.forms, start: p.start, end: p.end, cik: p.cik, item: p.item, from: String(p.from) })
   return json(await fetch(`/api/search?${qs}`))
 }
 

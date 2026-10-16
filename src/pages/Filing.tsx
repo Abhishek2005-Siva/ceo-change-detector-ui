@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, pollJob, startAnalysis } from '../api'
 import WaitLoader from '../components/WaitLoader'
 import { useNow } from '../hooks'
+import DetectorCard from '../components/DetectorCard'
 import Highlight from '../components/Highlight'
 import { clearStarting, coldEstimate, markReady, markStarting, recordCold } from '../modelState'
 import { memory } from '../searchState'
@@ -63,16 +64,29 @@ function Result({ r }: { r: AnalysisResult }) {
       resigned_sentence: r.resigned.sentence ?? '',
       resigned_confidence: r.resigned.confidence ?? null,
       source_url: r.filing.url,
+      other_events: (r.detectors ?? []).filter((d) => d.applicable).map((d) => ({ detector: d.key, item: d.item, found: d.found, events: d.events.map((e) => ({ event: e.title, confidence: e.confidence ?? null, detail: e.detail ?? '', evidence: e.evidence ?? '' })), fields: d.fields ?? {} })),
     }),
     [r],
   )
 
-  let headline = 'No CEO change found in this filing'
-  let tone: 'good' | 'neutral' = 'neutral'
-  if (!r.item502Found) headline = 'This filing has no leadership-change section (Item 5.02)'
-  else if (r.appointed.found && r.resigned.found) { headline = 'CEO transition: one CEO leaving and a new one named'; tone = 'good' }
-  else if (r.appointed.found) { headline = 'A new CEO was named'; tone = 'good' }
-  else if (r.resigned.found) { headline = 'A CEO is leaving'; tone = 'good' }
+  const dets = r.detectors ?? []
+  const foundDets = dets.filter((d) => d.applicable && d.found)
+  const quietDets = dets.filter((d) => d.applicable && !d.found)
+  const absentDets = dets.filter((d) => !d.applicable)
+  const ceoCount = (r.appointed.found ? 1 : 0) + (r.resigned.found ? 1 : 0)
+  const eventCount = ceoCount + foundDets.reduce((n, d) => n + d.events.length, 0)
+  const titles = [
+    ...(r.appointed.found ? ['New CEO named'] : []),
+    ...(r.resigned.found ? ['CEO leaving'] : []),
+    ...foundDets.flatMap((d) => d.events.map((e) => e.title)),
+  ]
+  const tone: 'good' | 'neutral' = eventCount > 0 ? 'good' : 'neutral'
+  const headline =
+    eventCount > 0
+      ? `${eventCount} event${eventCount === 1 ? '' : 's'} found in this filing`
+      : dets.some((d) => d.applicable) || r.item502Found
+        ? 'Checked, and none of the events we track were reported'
+        : 'This filing does not report any event we track'
 
   const rows = showAll ? r.sentences : r.sentences.filter((s) => s.readers.some((x) => x.label !== 'NONE'))
 
@@ -80,25 +94,48 @@ function Result({ r }: { r: AnalysisResult }) {
     <>
       <div className={`banner ${tone}`}>
         <b>{headline}</b>
-        <span>Analyzed in {r.seconds}s{r.skippedModel ? '' : ` · ${r.sentences.length} sentences read by 3 AI readers`}</span>
+        <span>
+          {titles.length > 0 ? `${titles.join(' · ')} · ` : ''}Analyzed in {r.seconds}s
+        </span>
       </div>
 
-      {r.item502Found && (
-        <div className="grid-2 tight">
-          <Panel kind="appointed" ex={r.appointed} />
-          <Panel kind="resigned" ex={r.resigned} />
-        </div>
+      {eventCount > 0 && <h2 className="sec-h">What happened</h2>}
+      <div className="grid-2 tight">
+        {r.appointed.found && <Panel kind="appointed" ex={r.appointed} />}
+        {r.resigned.found && <Panel kind="resigned" ex={r.resigned} />}
+        {foundDets.map((d) => <DetectorCard key={d.key} d={d} />)}
+      </div>
+
+      {(quietDets.length > 0 || (r.item502Found && ceoCount === 0)) && (
+        <section>
+          <h2 className="sec-h">Checked, nothing reported</h2>
+          <div className="grid-2 tight">
+            {r.item502Found && ceoCount === 0 && (
+              <div className="card dcard none">
+                <h3>Leadership change (CEO)</h3>
+                <p className="muted small">Form 8-K Item 5.02 · no CEO appointment or departure found</p>
+              </div>
+            )}
+            {quietDets.map((d) => <DetectorCard key={d.key} d={d} />)}
+          </div>
+        </section>
+      )}
+
+      {absentDets.length > 0 && (
+        <p className="muted small absent">
+          Not in this filing: {[...(r.item502Found ? [] : ['Leadership change (Item 5.02)']), ...absentDets.map((d) => `${d.title} (Item ${d.item})`)].join(' · ')}.
+        </p>
       )}
 
       {r.skippedModel && (
         <p className="explain good">
-          <b>Instant answer:</b> {r.skippedModel} The AI readers were not needed for this filing.
+          <b>Instant answer:</b> {r.skippedModel} The AI readers were not needed for the CEO check.
         </p>
       )}
 
       {r.item502Found && !r.skippedModel && (
         <section>
-          <h2>Everything the AI read</h2>
+          <h2>Everything the AI read for the CEO check</h2>
           <p className="muted">
             Each sentence of the leadership section, with the label every reader gave it. A vote only counts when the reader is at least 70% sure.
           </p>

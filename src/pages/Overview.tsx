@@ -3,6 +3,7 @@ import { num, pct } from '../utils'
 import Stat from '../components/Stat'
 import Dots from '../components/Dots'
 import BarChart from '../components/BarChart'
+import { comingSoon, detectors } from '../data/detectors'
 
 const progress = [
   { label: 'First reliable model', sub: 'DistilBERT (small)', value: 0.8126 },
@@ -23,20 +24,53 @@ export default function Overview() {
   return (
     <>
       <section className="hero">
-        <span className="eyebrow">Best model found across all tests</span>
-        <h1>An AI that reads company filings and tells you when a CEO is hired or leaves.</h1>
+        <span className="eyebrow">FilingLens · AI that reads SEC filings for you</span>
+        <h1>See what happened in any SEC 8-K filing, in plain English.</h1>
         <p className="lead">
-          When a US public company changes its CEO, it must tell the SEC in a short public document called an <strong>8-K</strong>. Thousands of these are filed
-          every month, almost all about something else. This system reads every one, finds the CEO news, and shows you the exact sentence it relied on.
+          When something important happens at a US public company, it has to tell the SEC in a document called an <strong>8-K</strong>. Thousands are filed every month,
+          most of them long and technical. FilingLens finds the filing, reads it with AI, and tells you what changed: a new CEO, a bankruptcy, a delisting notice,
+          a new auditor, how shareholders voted. Every answer comes with the exact sentence it is based on.
         </p>
         <div className="hero-actions">
-          <a className="btn primary" href="#/results">Browse real results</a>
+          <a className="btn primary" href="#/search">Search and analyze a filing</a>
           <a className="btn" href="#/how">See how it works</a>
         </div>
       </section>
 
+      <section aria-labelledby="h-detect">
+        <h2 id="h-detect">What FilingLens detects <span className="tag">{detectors.length} AI detectors, each tested on filings it never saw</span></h2>
+        <div className="det-grid">
+          {detectors.map((d) => (
+            <article key={d.key} className={`card det tone-${d.tone}`}>
+              <div className="det-head">
+                <span className={`dicon t-${d.tone}`} aria-hidden="true">{d.icon}</span>
+                <div>
+                  <h3>{d.title}</h3>
+                  <p className="muted small">Form 8-K Item {d.item}</p>
+                </div>
+              </div>
+              <p>{d.what}</p>
+              <dl className="det-metrics">
+                {d.metrics.map((m) => (
+                  <div key={m.label}><dd>{m.value}</dd><dt>{m.label}</dt></div>
+                ))}
+              </dl>
+              <p className="muted small"><b>Tested on:</b> {d.tested}.{d.caveat ? ` ${d.caveat}` : ''}</p>
+            </article>
+          ))}
+        </div>
+        <details className="soon">
+          <summary>Coming next ({comingSoon.length})</summary>
+          <ul>
+            {comingSoon.map((c) => (
+              <li key={c.title}><b>{c.title}</b> <span className="muted">Item {c.item}: {c.status}</span></li>
+            ))}
+          </ul>
+        </details>
+      </section>
+
       <section aria-labelledby="h-proof">
-        <h2 id="h-proof">How well did it do? <span className="tag">Tested on {march.period.label}, a month the AI never saw during training</span></h2>
+        <h2 id="h-proof">Closer look: the CEO detector <span className="tag">Tested on {march.period.label}, a month the AI never saw during training</span></h2>
         <div className="grid-4">
           <Stat big={pct(m.appointed.precision, 0)} title="of “new CEO” alerts were right" tone="green">
             {m.appointed.tp} of {m.appointed.tp + m.appointed.fp} appointment alerts were genuine. Only {m.appointed.fp} false alarms.
@@ -101,7 +135,7 @@ export default function Overview() {
       </section>
 
       <section aria-labelledby="h-prog">
-        <h2 id="h-prog">How we picked the best model</h2>
+        <h2 id="h-prog">How we picked the best CEO model</h2>
         <div className="grid-2 tight">
           <div className="card">
             <h3>Overall accuracy score, tested on four unseen months</h3>

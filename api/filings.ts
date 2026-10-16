@@ -7,7 +7,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const forms = (one(req.query.forms) || '8-K').split(',').map((f) => f.trim().toUpperCase())
   const start = one(req.query.start)
   const end = one(req.query.end)
-  const leadership = one(req.query.leadership) === '1'
+  const itemRaw = one(req.query.item) || (one(req.query.leadership) === '1' ? '5.02' : '')
+  const item = /^\d\.\d{2}$/.test(itemRaw) ? itemRaw : ''
   if (!/^\d{1,10}$/.test(cik)) return res.status(400).json({ error: 'A numeric company CIK is required.' })
 
   try {
@@ -24,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (start && date < start) continue
       if (end && date > end) continue
       const items: string[] = (rec.items[i] || '').split(',').map((x: string) => x.trim()).filter(Boolean)
-      if (leadership && !items.includes('5.02')) continue
+      if (item && !items.includes(item)) continue
       const acc: string = rec.accessionNumber[i]
       rows.push({
         accession: acc,

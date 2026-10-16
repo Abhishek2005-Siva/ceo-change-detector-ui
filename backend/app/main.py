@@ -16,7 +16,9 @@ from pydantic import BaseModel, Field
 import re
 
 from .item502 import ITEM_HEADING_RE, find_item_502_section, split_sentences
-from .sec_fetch import fetch_filing, filing_txt_url
+from .detect.fetch import fetch_all
+from .detect.families import REGISTRY, run_all
+from .sec_fetch import filing_txt_url
 
 API_KEY = os.getenv("API_KEY", "")
 # A filing whose Item 5.02 text never mentions a CEO-type title cannot contain a CEO appointment or resignation.
@@ -75,6 +77,8 @@ def _view(job: dict) -> dict:
         spent = now - d["readStart"]
         rate = spent / done if done > 0 and spent > 1.5 else EST_PER_UNIT
         eta = max(0.0, (total - done) * rate)
+    elif stage == "detectors":
+        eta = 14.0 if d.get("loadingModels") else 2.0
     elif stage == "splitting" and d.get("unitsTotal"):
         eta = d["unitsTotal"] * EST_PER_UNIT
     elif stage == "locating":
@@ -96,7 +100,7 @@ def _run(job: dict, cik: str, accession: str) -> None:
     t0 = time.time()
     try:
         _set(job, stage="fetching", progress=0.05)
-        text, meta = fetch_filing(cik, accession)
+        text, tables_text, meta = fetch_all(cik, accession)
         if text is None:
             _set(job, stage="error", t_end=time.time(), error="The SEC did not return this filing (not found or temporarily unavailable).")
             return
@@ -111,42 +115,39 @@ def _run(job: dict, cik: str, accession: str) -> None:
             "characters": len(text),
         }
         _set(job, stage="locating", progress=0.2, filing=filing)
-        section = find_item_502_section(text)
-        if section is None:
-            _set(job, stage="done", progress=1.0, t_end=time.time(), result={
-                "filing": filing, "item502Found": False, "section": "", "sentences": [],
-                "appointed": {"found": False}, "resigned": {"found": False},
-                "seconds": round(time.time() - t0, 1),
-            })
-            return
-        _set(job, stage="splitting", progress=0.3)
-        sentences = split_sentences(section)
-        total_units = max(1, len(sentences) * 3)
-        _set(job, stage="splitting", progress=0.3, sentenceCount=len(sentences), unitsTotal=total_units, unitsDone=0)
-        _set(job, stage="reading", progress=0.35, readStart=time.time(), readersDone=0)
         ens = _model["ensemble"]
-
-        def on_progress(done: int, total: int, reader_idx: int) -> None:
-            _set(job, unitsDone=done, readersDone=reader_idx, progress=0.35 + 0.6 * done / total)
-
-        gate_skips = CEO_HINT.search(section) is None
-        if gate_skips and os.getenv("CEO_GATE", "1") == "1":
-            out = {
-                "sentences": [],
-                "appointed": {"found": False},
-                "resigned": {"found": False},
-                "skippedModel": "This leadership section never mentions a CEO or president, so no CEO change is possible.",
-            }
-        else:
-            out = ens.analyze(sentences, on_progress)
-        result = {
-            "filing": filing,
-            "item502Found": True,
-            "section": section[:8000],
-            "readers": ens.reader_names,
-            "seconds": round(time.time() - t0, 1),
-            **out,
+        result: dict = {
+            "filing": filing, "item502Found": False, "section": "", "sentences": [], "readers": ens.reader_names,
+            "appointed": {"found": False}, "resigned": {"found": False}, "detectors": [],
         }
+
+        # ---- CEO appointed / resigned (Item 5.02), unchanged ----
+        section = find_item_502_section(text)
+        if section is not None:
+            _set(job, stage="splitting", progress=0.3)
+            sentences = split_sentences(section)
+            gate_skips = CEO_HINT.search(section) is None and os.getenv("CEO_GATE", "1") == "1"
+            total_units = max(1, len(sentences) * 3)
+            _set(job, stage="splitting", progress=0.3, sentenceCount=len(sentences), unitsTotal=0 if gate_skips else total_units, unitsDone=0)
+            result["item502Found"] = True
+            result["section"] = section[:8000]
+            if gate_skips:
+                result["skippedModel"] = "This leadership section never mentions a CEO or president, so no CEO change is possible."
+            else:
+                _set(job, stage="reading", progress=0.35, readStart=time.time(), readersDone=0)
+
+                def on_progress(done: int, total: int, reader_idx: int) -> None:
+                    _set(job, unitsDone=done, readersDone=reader_idx, progress=0.35 + 0.5 * done / total)
+
+                result.update(ens.analyze(sentences, on_progress))
+
+        # ---- every other detector whose Item is present in this filing ----
+        def on_status(title: str, cold: bool) -> None:
+            _set(job, stage="detectors", progress=0.88, detail=f"Checking: {title}" + (" (loading its AI readers first)" if cold else ""), loadingModels=cold)
+
+        _set(job, stage="detectors", progress=0.86, detail="Checking for other events…")
+        result["detectors"] = run_all(text, tables_text, meta.filed, on_status)
+        result["seconds"] = round(time.time() - t0, 1)
         _cache[f"{cik}/{accession}"] = result
         _set(job, stage="done", progress=1.0, result=result, t_end=time.time())
     except Exception as exc:
@@ -160,7 +161,21 @@ def health() -> dict:
         "loading": _model["loading"],
         "error": _model["error"],
         "readers": _model["ensemble"].reader_names if _model["ensemble"] else [],
+        "detectors": [{"key": f.key, "item": f.item, "title": f.title, "loaded": f.loaded} for f in REGISTRY],
     }
+
+
+def start_prewarm() -> None:
+    """After the snapshot restore, load the other detectors in the background so the first filing is not slowed."""
+
+    def go() -> None:
+        for fam in REGISTRY:
+            try:
+                fam.ensure_loaded()
+            except Exception:
+                pass  # surfaced per-detector when a filing needs it
+
+    threading.Thread(target=go, daemon=True).start()
 
 
 @app.post("/jobs")

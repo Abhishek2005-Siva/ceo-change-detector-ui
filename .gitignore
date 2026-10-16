@@ -19,3 +19,5 @@ models/
 checkpoints/
 ml/
 *.tsbuildinfo
+__pycache__/
+*.pyc

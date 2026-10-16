@@ -6,34 +6,34 @@ const example =
 const steps = [
   {
     n: 1,
-    title: 'Collect every filing',
-    body: 'We download the full list of 8-K filings the SEC published for the period. Nothing is sampled, so nothing is silently skipped.',
+    title: 'Find the filing',
+    body: 'Search the SEC’s public filings database by company, date, keywords or type of event. You see the same filings you would find on sec.gov.',
   },
   {
     n: 2,
-    title: 'Skip the irrelevant ones',
-    body: 'Most 8-Ks are about earnings, loans or contracts. The SEC’s own search tells us which ones contain “Item 5.02”, the section for leadership changes. The rest are set aside, which saves a lot of time.',
+    title: 'Download and split it into sections',
+    body: 'Every 8-K is organised in numbered “Items”: 5.02 is leadership changes, 1.03 is bankruptcy, 3.01 is delisting, 4.01 is auditors, 5.07 is shareholder votes. We cut the filing into those sections so each detector only reads the part that matters.',
   },
   {
     n: 3,
-    title: 'Cut the section into sentences',
-    body: 'The leadership section is split into individual sentences, taking care not to break at things like “Mr.” or “Inc.”. A bug here was once costing the AI accuracy, and fixing it was one of the biggest wins.',
+    title: 'Send each section to the right AI readers',
+    body: 'Each type of event has its own AI detector, trained on thousands of real filings. Leadership changes are read sentence by sentence by three AI readers that vote. Bankruptcy and delisting notices are read as a whole by two or three readers that average their answers.',
   },
   {
     n: 4,
-    title: 'Three AI readers vote',
-    body: 'Each sentence goes to three AI models that were trained on thousands of labelled examples. Each decides: is this a new CEO, a CEO leaving, or neither? Two out of three must agree with high confidence.',
+    title: 'Double-check with rules where it helps',
+    body: 'Some detectors pair the AI with plain rules (for example, for auditor changes and vote tables). Rules also pull out details the AI does not: the court and case number in a bankruptcy, the exchange and deadline in a delisting notice, the firms in an auditor change.',
   },
   {
     n: 5,
     title: 'Show the evidence',
-    body: 'The result is a list of companies with the exact sentence and a link to the original SEC filing, so a person can verify any answer in seconds.',
+    body: 'You get a short list of what happened, how sure the AI is, which readers agreed, and the exact sentence it relied on, with a link to the original filing so you can verify anything in seconds.',
   },
 ]
 
 const glossary = [
   ['8-K', 'A short report US public companies file with the SEC when something important happens.'],
-  ['Item 5.02', 'The section of an 8-K about directors and senior officers joining, leaving or changing roles.'],
+  ['Item', 'Form 8-K is split into numbered sections called Items. Each Item covers one kind of event, for example 5.02 for leadership changes.'],
   ['Precision', 'When the AI says “this is CEO news”, how often is it right? High precision means few false alarms.'],
   ['Recall', 'Of all the real CEO news, how much did the AI find? High recall means few misses.'],
   ['F1 score', 'One number (0 to 1) that balances precision and recall. Higher is better.'],
@@ -47,7 +47,7 @@ export default function HowItWorks() {
     <>
       <section className="hero compact">
         <span className="eyebrow">Plain-English walkthrough</span>
-        <h1>How the system turns thousands of filings into a short, trustworthy list</h1>
+        <h1>How FilingLens turns a long, technical filing into a short, checkable answer</h1>
       </section>
 
       <ol className="steps">

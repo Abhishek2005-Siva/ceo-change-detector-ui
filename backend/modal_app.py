@@ -10,7 +10,7 @@ import modal
 BASES = (
     "from huggingface_hub import snapshot_download as s; "
     "s('roberta-large', allow_patterns=['*.json','*.safetensors','*.txt']); "
-    "s('microsoft/deberta-v3-base', allow_patterns=['*.json','*.safetensors','*.txt','*.model'])"
+    "s('microsoft/deberta-v3-base', allow_patterns=['*.json','*.safetensors','*.txt','*.model']); s('roberta-base', allow_patterns=['*.json','*.safetensors','*.txt'])"
 )
 
 image = (
@@ -27,7 +27,7 @@ app = modal.App("leadership-change-detector", image=image)
 
 @app.cls(
     cpu=8.0,
-    memory=12288,
+    memory=20480,
     secrets=[modal.Secret.from_name("ceo-detector-secrets")],
     max_containers=1,  # jobs live in this container's memory, so keep exactly one
     scaledown_window=180,
@@ -49,6 +49,7 @@ class Service:
 
     @modal.asgi_app()
     def web(self):
-        from app.main import app as api  # the FastAPI instance
+        from app.main import app as api, start_prewarm  # the FastAPI instance
 
+        start_prewarm()
         return api

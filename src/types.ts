@@ -89,6 +89,31 @@ export interface SentenceRow {
   readers: { reader: string; label: 'NONE' | 'APPOINTED' | 'RESIGNED'; confidence: number; counts: boolean }[]
 }
 
+export interface DetectorEvent {
+  label: string
+  title: string
+  confidence?: number | null
+  evidence?: string | null
+  detail?: string
+  source?: string
+  readers?: { reader: string; probability: number }[]
+}
+
+export interface DetectorResult {
+  key: string
+  item: string
+  title: string
+  applicable: boolean
+  found: boolean
+  events: DetectorEvent[]
+  fields?: Record<string, unknown>
+  readerNames?: string[]
+  seconds?: number
+  error?: string
+  note?: string
+  voteRows?: Record<string, unknown>[]
+}
+
 export interface AnalysisResult {
   filing: { cik: string; accession: string; company: string; form: string; filed: string; items: string[]; url: string; characters: number }
   item502Found: boolean
@@ -99,11 +124,12 @@ export interface AnalysisResult {
   resigned: Extraction
   seconds: number
   skippedModel?: string
+  detectors?: DetectorResult[]
 }
 
 export interface JobStatus {
   id: string
-  stage: 'queued' | 'fetching' | 'locating' | 'splitting' | 'reading' | 'done' | 'error'
+  stage: 'queued' | 'fetching' | 'locating' | 'splitting' | 'reading' | 'detectors' | 'done' | 'error'
   progress: number
   sentenceCount?: number
   readersDone?: number
@@ -111,6 +137,7 @@ export interface JobStatus {
   unitsTotal?: number
   elapsed?: number
   etaSeconds?: number
+  detail?: string
   filing?: AnalysisResult['filing']
   result?: AnalysisResult
   error?: string

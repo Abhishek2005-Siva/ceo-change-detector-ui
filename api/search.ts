@@ -9,9 +9,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const end = one(req.query.end)
   const cik = one(req.query.cik)
   const from = Math.max(0, parseInt(one(req.query.from) || '0', 10) || 0)
-  const leadership = one(req.query.leadership) === '1'
+  // `item` filters to filings that declare a given 8-K Item (e.g. 5.02 leadership, 1.03 bankruptcy). `leadership=1` is the old alias.
+  const itemRaw = one(req.query.item) || (one(req.query.leadership) === '1' ? '5.02' : '')
+  const item = /^\d\.\d{2}$/.test(itemRaw) ? itemRaw : ''
 
-  const phrase = leadership ? `${q ? q + ' ' : ''}"Item 5.02"` : q
+  const phrase = item ? `${q ? q + ' ' : ''}"Item ${item}"` : q
   const params = new URLSearchParams()
   if (phrase) params.set('q', phrase)
   params.set('forms', forms)
