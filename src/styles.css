@@ -522,3 +522,5 @@ td.empty { text-align: center; }
 .hero-points li { padding-left: 22px; position: relative; }
 .hero-points li::before { content: '✓'; position: absolute; left: 0; color: var(--green); font-weight: 700; }
 .hero-points b { color: var(--text); }
+.power-queued { display: inline-flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: .84rem; color: var(--amber); background: var(--amber-soft); padding: 7px 14px; border-radius: 999px; font-weight: 600; }
+.power-queued .linklike { font-size: .82rem; }

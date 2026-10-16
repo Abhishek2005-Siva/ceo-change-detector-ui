@@ -45,6 +45,14 @@ export async function hostCall<T>(action: 'accounts' | 'start' | 'stop' | 'statu
   return body as T
 }
 
+export interface StopResult {
+  ok: boolean
+  stopped?: string[]
+  queued?: boolean // an analysis is running: the server turns off when it finishes
+  cancelled?: boolean
+  message?: string
+}
+
 export interface BootProgress {
   account: string
   status: string // QUEUED | RUNNING | COMPLETE | ERROR | CANCEL_* | NONE

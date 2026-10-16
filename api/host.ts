@@ -143,7 +143,11 @@ async function stopRunning(infos: AccountInfo[], only?: string) {
   const url = (process.env.MODEL_URL || '').replace(/\/$/, '')
   if (url && targets.length) {
     // Ask the server to stop itself first (newer versions understand this); deleting the kernel below ends it either way.
-    await fetch(`${url}/shutdown`, { method: 'POST', headers: { Authorization: `Bearer ${process.env.MODEL_API_KEY || ''}`, 'ngrok-skip-browser-warning': '1', 'Content-Type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(6000) }).catch(() => undefined)
+    const r = await fetch(`${url}/shutdown`, { method: 'POST', headers: { Authorization: `Bearer ${process.env.MODEL_API_KEY || ''}`, 'ngrok-skip-browser-warning': '1', 'Content-Type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(6000) })
+      .then((x) => (x.ok ? (x.json() as Promise<{ batches?: number }>) : null))
+      .catch(() => null)
+    // an analysis is running and is being forced to stop: give it a moment to hand over what it has finished
+    if (r && Number(r.batches) > 0) await new Promise((ok) => setTimeout(ok, 15000))
   }
   for (const i of targets) {
     const def = ACCOUNTS.find((a) => a.id === i.id)!
@@ -160,7 +164,7 @@ const eligible = (i: AccountInfo) => i.configured && i.adaptersReady && i.kernel
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Cache-Control', 'no-store')
   if (req.method !== 'POST') return res.status(405).json({ error: 'method', message: 'Use POST.' })
-  const body = (req.body ?? {}) as { action?: string; account?: string; runHours?: number; dryRun?: boolean; except?: string }
+  const body = (req.body ?? {}) as { action?: string; account?: string; runHours?: number; dryRun?: boolean; except?: string; cancel?: boolean; force?: boolean }
   try {
     if (body.action === 'progress') {
       // light check used every few seconds while the server boots: just the Kaggle run status of one account
@@ -192,6 +196,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (body.action === 'stop') {
+      const url = (process.env.MODEL_URL || '').replace(/\/$/, '')
+      const ask = (path: string, payload: unknown) =>
+        fetch(`${url}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${process.env.MODEL_API_KEY || ''}`, 'ngrok-skip-browser-warning': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(8000) })
+          .then(async (r) => (r.ok && !r.headers.get('ngrok-error-code') ? ((await r.json().catch(() => ({}))) as Record<string, unknown>) : null))
+          .catch(() => null)
+      if (body.cancel) {
+        // take back a turn-off that was waiting for an analysis to finish
+        if (url) await ask('/shutdown/cancel', {})
+        return res.status(200).json({ ok: true, cancelled: true })
+      }
+      if (url && !body.force) {
+        // if an analysis is running the server queues the turn-off and keeps going until it is done
+        const r = await ask('/shutdown', { queue: true })
+        if (r?.queued) return res.status(200).json({ ok: true, queued: true, batches: r.batches, message: String(r.message ?? '') })
+      }
       const stopped = await stopRunning(infos.filter((i) => i.id !== body.except), body.account && body.account !== 'all' ? body.account : undefined)
       return res.status(200).json({ ok: true, stopped })
     }

@@ -180,11 +180,29 @@ def _models_status() -> list:
     return out
 
 
+class ShutdownRequest(BaseModel):
+    queue: bool = False  # true: wait for any running analysis to finish first
+
+
 @app.post("/shutdown")
-def shutdown() -> dict:
-    """Asks the host to stop. The Kaggle kernel watches this flag, exits, and so releases the GPU."""
+def shutdown(req: Optional[ShutdownRequest] = None) -> dict:
+    """Asks the host to stop. The Kaggle kernel watches these flags, exits, and so releases the GPU.
+
+    With queue=true and an analysis running, the stop is queued and happens as soon as the analysis is over."""
+    running = _batches.active()
+    if req is not None and req.queue and running > 0:
+        _activity["shutdown_queued"] = True
+        return {"ok": True, "queued": True, "batches": running, "message": "An analysis is running, so the server will turn off as soon as it finishes."}
+    _activity.pop("shutdown_queued", None)
     _activity["shutdown"] = True
-    return {"ok": True, "message": "Shutting down. The server will stop within a few seconds."}
+    return {"ok": True, "queued": False, "batches": running, "message": "Shutting down. The server will stop within a few seconds."}
+
+
+@app.post("/shutdown/cancel")
+def cancel_shutdown() -> dict:
+    """Takes back a queued turn-off."""
+    _activity.pop("shutdown_queued", None)
+    return {"ok": True}
 
 
 @app.get("/health")
@@ -197,6 +215,7 @@ def health() -> dict:
         "detectors": [{"key": f.key, "item": f.item, "title": f.title, "loaded": f.loaded} for f in REGISTRY],
         "models": _models_status(),
         "batches": _batches.active(),
+        "shutdownQueued": bool(_activity.get("shutdown_queued")),
     }
 
 

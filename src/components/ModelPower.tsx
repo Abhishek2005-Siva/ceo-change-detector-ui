@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ApiError, modelHealth } from '../api'
 import { clearStarting, bootEstimate, getStartingAt, markOff, markReady, markStarting, readyUntil, recordBoot, setStartingEstimate } from '../modelState'
 import { fmtSecs } from '../hooks'
-import { hostCall, type BootProgress, type StartResult } from '../host'
+import { hostCall, type BootProgress, type StartResult, type StopResult } from '../host'
 import ModelStatusPanel, { DEMO, DEMO_MODELS, summarize } from './ModelStatusPanel'
 import StartPanel from './StartPanel'
 import StartProgress, { finished, type BootEvent, type BootState, type Tunnel } from './StartProgress'
@@ -28,6 +28,8 @@ export default function ModelPower() {
   const [sum, setSum] = useState<ReturnType<typeof summarize> | null>(DEMO ? summarize(DEMO_MODELS) : null)
   const [boot, setBoot] = useState<BootState | null>(null)
   const [bootOpen, setBootOpen] = useState(false)
+  const [queued, setQueued] = useState(false) // a turn-off is waiting for a running analysis to finish
+  const [running, setRunning] = useState(0) // analyses running on the server
   const run = useRef(0) // bumped to cancel an older watch loop
   const live = useRef<Live>()
 
@@ -64,6 +66,8 @@ export default function ModelPower() {
         const h = await modelHealth()
         if (h.ok) {
           if (h.models) setSum(summarize(h.models))
+          setQueued(!!h.shutdownQueued)
+          setRunning(h.batches ?? 0)
           markReady()
           setState((s) => (s === 'off' || s === 'error' ? 'on' : s))
         } else if (h.hostError || h.hostKind) {
@@ -97,22 +101,42 @@ export default function ModelPower() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state])
 
-  const turnOff = async () => {
-    if (!window.confirm('Turn the model server off?\n\nThis stops the Kaggle GPU session for everyone using the site and frees the GPU hours. An analysis that is still running will pause (what is finished is kept) and can be resumed later. Starting it again takes about 12 minutes.')) return
+  const turnOff = async (force = false) => {
+    const text = force
+      ? 'Turn the server off right now?\n\nThe analysis that is running will pause. What is finished is kept, and you can press Resume on it later.'
+      : running > 0
+        ? `An analysis is running (${running}).\n\nThe server will turn off as soon as it has finished, so nothing is lost. Until then it stays on. Queue the turn-off?`
+        : 'Turn the model server off?\n\nThis stops the Kaggle GPU session for everyone using the site and frees the GPU hours. Starting it again takes a few minutes.'
+    if (!window.confirm(text)) return
     setStopping(true)
     try {
       run.current++
-      await hostCall('stop')
+      const r = await hostCall<StopResult>('stop', force ? { force: true } : {})
+      if (r.queued) {
+        setQueued(true)
+        return
+      }
       markOff()
       setPanel(false)
       setMsg('')
       setBoot(null)
+      setQueued(false)
+      setRunning(0)
       live.current = undefined
       setState('off')
     } catch (e) {
       window.alert(e instanceof Error ? e.message : 'Could not stop the server.')
     } finally {
       setStopping(false)
+    }
+  }
+
+  const cancelOff = async () => {
+    try {
+      await hostCall('stop', { cancel: true })
+      setQueued(false)
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'Could not cancel the turn-off.')
     }
   }
 
@@ -243,9 +267,17 @@ export default function ModelPower() {
         </button>
         {panel && <ModelStatusPanel onClose={() => setPanel(false)} onSummary={setSum} />}
         {progressPanel}
-        <button type="button" className="power-off" onClick={() => void turnOff()} disabled={stopping || DEMO} title="Stop the Kaggle GPU session">
-          {stopping ? 'Stopping…' : 'Turn off'}
-        </button>
+        {queued ? (
+          <span className="power-queued" role="status">
+            Turning off when the analysis finishes
+            <button type="button" className="linklike" onClick={() => void cancelOff()}>cancel</button>
+            <button type="button" className="linklike" onClick={() => void turnOff(true)}>turn off now</button>
+          </span>
+        ) : (
+          <button type="button" className="power-off" onClick={() => void turnOff()} disabled={stopping || DEMO} title={running > 0 ? 'An analysis is running: the turn-off will wait for it to finish' : 'Stop the Kaggle GPU session'}>
+            {stopping ? 'Stopping…' : running > 0 ? 'Turn off after analysis' : 'Turn off'}
+          </button>
+        )}
       </div>
     )
   }

@@ -59,6 +59,8 @@ export interface ModelHealth {
   hostKind?: 'offline' | 'blocked'
   hostCode?: string
   models?: ModelStatus[]
+  batches?: number // analyses running on the server right now
+  shutdownQueued?: boolean // a turn-off is waiting for them to finish
 }
 
 /** Asks the model service if it is ready. Asking also wakes it if it is asleep. */

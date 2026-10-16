@@ -86,8 +86,13 @@ while time.time() - t0 < RUN_HOURS * 3600:
         reason = "stopped from the website"
         time.sleep(3)  # let the HTTP reply reach the browser
         break
+    busy = _main._batches.active() > 0  # an analysis is running: never stop under it, whether the idle timer or a turn-off asks
+    if _main._activity.get("shutdown_queued") and not busy:
+        reason = "turned off from the website once the analysis finished"
+        time.sleep(3)
+        break
     idle = (time.time() - _main._activity["t"]) / 60
-    if idle > IDLE_MINUTES and time.time() - t0 > 300:
+    if idle > IDLE_MINUTES and time.time() - t0 > 300 and not busy:
         reason = f"idle for {int(idle)} min"
         break
     if time.time() - last_log > 1800:
