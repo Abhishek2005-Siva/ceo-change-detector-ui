@@ -95,7 +95,7 @@ async function view(meta: Meta): Promise<Meta & { live: boolean }> {
   const r = await model(`/batches/${meta.id}`, {}, 4000)
   if (r.ok && r.body?.status) {
     const b = r.body
-    return { ...meta, status: b.status, total: b.total ?? meta.total, done: b.done ?? meta.done, errors: b.errors ?? meta.errors, message: b.message || meta.message, updatedAt: Math.max(meta.updatedAt, b.updatedAt ?? 0), live: true }
+    return { ...meta, status: b.status, total: Math.max(b.total ?? 0, meta.total), done: b.done ?? meta.done, errors: b.errors ?? meta.errors, message: b.message || meta.message, updatedAt: Math.max(meta.updatedAt, b.updatedAt ?? 0), live: true }
   }
   if (Date.now() - meta.updatedAt > STALE_MS) {
     return { ...meta, status: 'interrupted', message: meta.message || 'The model server stopped before this analysis finished. Turn it on again and press Resume.', live: false }
