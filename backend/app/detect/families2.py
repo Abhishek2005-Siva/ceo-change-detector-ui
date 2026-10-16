@@ -280,15 +280,31 @@ class Equity(Family):
 
 
 # --------------------------------------------------------------------------------- 2.02
-_SENT_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])")
+_SENT_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])|\s*[•|]\s*")  # also break at bullets and table bars, which headlines use instead of full stops
 _GUIDE_KW = re.compile(r"\b(guidance|outlook)\b", re.IGNORECASE)
+_DIRECTION = re.compile(r"(?i)\b(rais\w*|increas\w*|lower\w*|reduc\w*|cut|reiterat\w*|reaffirm\w*|maintain\w*|withdr\w+|suspend\w*|updat\w*|narrow\w*|expect\w*)\b")
 
 
-def _guidance_sentences(text: str, context: int = 1) -> List[str]:
-    sents = _SENT_SPLIT.split(re.sub(r"\s+", " ", text).strip())
-    hits = {i for i, s in enumerate(sents) if _GUIDE_KW.search(s)}
-    win = sorted({i for h in hits for i in range(max(0, h - context), min(len(sents), h + context + 1))})
-    return [sents[i] for i in win]
+def _clip(sentence: str, width: int = 360) -> str:
+    """A very long run of text is trimmed to the stretch around the guidance wording."""
+    if len(sentence) <= width:
+        return sentence
+    m = _GUIDE_KW.search(sentence)
+    mid = m.start() if m else 0
+    lo = max(0, mid - width // 2)
+    return ("… " if lo else "") + sentence[lo:lo + width].strip() + " …"
+
+
+def _guidance_sentences(text: str, context: int = 0) -> List[str]:
+    sents = [x for x in _SENT_SPLIT.split(re.sub(r"\s+", " ", text).strip()) if x]
+    hits = [i for i, s in enumerate(sents) if _GUIDE_KW.search(s)]
+    hits.sort(key=lambda i: (not _DIRECTION.search(sents[i]), i))  # the lines that say which way it moved come first
+    win = []
+    for h in hits:
+        for i in range(max(0, h - context), min(len(sents), h + context + 1)):
+            if i not in win:
+                win.append(i)
+    return [_clip(sents[i]) for i in win]
 
 
 class Guidance(Family):
