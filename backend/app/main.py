@@ -312,6 +312,14 @@ def get_batch(batch_id: str) -> dict:
     return b.view()
 
 
+@app.get("/batches/{batch_id}/tail")
+def batch_tail(batch_id: str) -> dict:
+    b = _batches.batches.get(batch_id)
+    if b is None:
+        raise HTTPException(404, "Unknown batch")
+    return {**b.view(), "items": b.tail()}
+
+
 @app.post("/batches/{batch_id}/stop")
 def stop_batch(batch_id: str) -> dict:
     b = _batches.batches.get(batch_id)

@@ -113,12 +113,20 @@ def pick_name(sentence: str, kind: str, context: str = "") -> Optional[str]:
                 s += 3
             if re.search(r"(?i)(?:notified|informed|advised)\s+(?:by|that)\s*$", before):
                 s += 3
+            # "the executive transition of Tony Zook, the current CEO, to the role of Executive Chairman": the person moving out of the job
+            if re.search(r"(?i)(?:transition|move|change)\s+of\s*$", before):
+                s += 3
+            if re.match(r"(?i)\s*(?:,[^,]{0,160},)?\s*(?:will\s+|is\s+to\s+|shall\s+)?(?:to\s+(?:the\s+)?(?:role|position)\s+of\s+(?:executive\s+|non-executive\s+)?(?:chair|vice)|to\s+(?:executive\s+|non-executive\s+)?(?:chair|vice)|transition\w*\s+(?:from|to)|mov\w+\s+(?:from|to|into))", after):
+                s += 4
             if _APPOINT.search(before[-45:]) and not outgoing:
                 s -= 2
         return s
 
     ranked = sorted(cands, key=lambda c: (-score(c), c[0]))
     top = ranked[0]
+    if kind != "appointed" and score(top) < 0:
+        # the wording points the other way: the person being appointed is not the one leaving
+        return None
     if score(top) <= 0 and len(cands) > 1:
         # nothing clearly tied to the verb: only trust it if there is a single plausible person
         return None

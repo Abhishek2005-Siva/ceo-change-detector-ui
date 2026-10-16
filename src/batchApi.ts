@@ -44,6 +44,8 @@ export interface CreateBody {
 export const createBatch = (b: CreateBody) => post<{ id: string }>({ action: 'create', ...b })
 export const stopBatch = (id: string) => post<{ ok: boolean }>({ action: 'stop', id })
 export const resumeBatch = (id: string) => post<{ ok: boolean }>({ action: 'resume', id })
+export type LiveBatch = Pick<BatchMeta, 'status' | 'total' | 'done' | 'errors' | 'parts' | 'updatedAt'> & { message?: string; live: true; tail: PartEntry[] }
+
 export const getBatch = (id: string) => fetch(`/api/batch?id=${id}`).then((r) => json<BatchMeta>(r))
 export const getPart = (id: string, n: number) => fetch(`/api/batch?id=${id}&part=${n}`).then((r) => json<{ items: PartEntry[] }>(r)).then((r) => r.items)
 
@@ -74,4 +76,10 @@ export function forget(id: string) {
   try {
     localStorage.setItem(KEY, JSON.stringify(loadMine().filter((x) => x.id !== id)))
   } catch { /* storage unavailable */ }
+}
+
+/** Progress straight from the model server, plus the finished filings that are not stored yet. Falls back to the stored copy when the server cannot be reached. */
+export async function getLive(id: string): Promise<LiveBatch | BatchMeta> {
+  const r = await fetch(`/api/batch?id=${id}&live=1`)
+  return json<LiveBatch | BatchMeta>(r)
 }

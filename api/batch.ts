@@ -122,6 +122,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'GET') {
       const id = one(req.query.id)
       if (!ID.test(id)) return res.status(400).json({ error: 'bad_request', message: 'That is not a valid analysis link.' })
+      // live=1: a page that already has the analysis's details asks only the model server, which is quicker and costs no storage reads.
+      // It answers with the counts plus the finished filings that are not stored yet.
+      if (one(req.query.live)) {
+        const r = await model(`/batches/${id}/tail`, {}, 5000)
+        if (r.ok && r.body?.status) {
+          const b = r.body
+          return res.status(200).json({ live: true, status: b.status, total: b.total, done: b.done, errors: b.errors, message: b.message || '', updatedAt: b.updatedAt, parts: b.parts, tail: b.items ?? [] })
+        }
+        // the server cannot be reached: fall through to what is stored
+      }
       const part = one(req.query.part)
       if (part) {
         const items = await readBlob<unknown[]>(key(id, `part-${parseInt(part, 10) || 0}.json`))

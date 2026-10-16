@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError } from '../api'
 import { errorRow, rowFor, type Row } from '../batch/columns'
-import { getBatch, getPart, isLive, isResumable, remember, resumeBatch, stopBatch, type BatchMeta, type PartEntry } from '../batchApi'
+import { getBatch, getLive, getPart, isLive, isResumable, remember, resumeBatch, stopBatch, type BatchMeta, type PartEntry } from '../batchApi'
 import ResultSheet from '../components/ResultSheet'
 import { fmtSecs } from '../hooks'
 
 const POLL_MS = 8000
+const LIVE_MS = 4000
 
 interface LogLine {
   t: number
@@ -62,6 +63,7 @@ export default function Analysis({ id }: { id: string }) {
   const [copied, setCopied] = useState(false)
   const [tick, setTick] = useState(0)
   const entries = useRef(new Map<string, PartEntry>())
+  const tail = useRef(new Map<string, PartEntry>()) // finished filings the server has not stored yet
   const have = useRef(0) // stored parts already downloaded
   const samples = useRef<{ t: number; done: number }[]>([])
   const [version, setVersion] = useState(0)
@@ -72,10 +74,30 @@ export default function Analysis({ id }: { id: string }) {
 
   const poll = useCallback(async () => {
     try {
-      const m = await getBatch(id)
+      const prev = prevMeta.current
+      let m: BatchMeta
+      let fresh: PartEntry[] = []
+      if (prev && isLive(prev.status)) {
+        // running: ask the model server directly, which also hands over the filings that are not stored yet
+        const r = await getLive(id)
+        if ('tail' in r) {
+          const { tail, ...rest } = r
+          m = { ...prev, ...rest }
+          fresh = tail
+          // it just finished: read the stored copy so the very last parts are included
+          if (!isLive(m.status)) {
+            m = await getBatch(id)
+            fresh = []
+          }
+        } else {
+          m = r
+        }
+      } else {
+        m = await getBatch(id)
+      }
       setErr('')
       setMeta(m)
-      const line = describe(m, prevMeta.current, lastLogAt.current)
+      const line = describe(m, prev, lastLogAt.current)
       prevMeta.current = m
       if (line) {
         lastLogAt.current = line.t
@@ -91,8 +113,16 @@ export default function Analysis({ id }: { id: string }) {
       }
       let changed = false
       while (have.current < m.parts) {
-        for (const e of await getPart(id, have.current)) entries.current.set(e.filing.accession, e) // a later part replaces an earlier one (retries)
+        try {
+          for (const e of await getPart(id, have.current)) entries.current.set(e.filing.accession, e) // a later part replaces an earlier one (retries)
+        } catch {
+          break // not stored yet; the next check picks it up
+        }
         have.current++
+        changed = true
+      }
+      if (changed || fresh.length !== tail.current.size) {
+        tail.current = new Map(fresh.map((e) => [e.filing.accession, e]))
         changed = true
       }
       if (changed) setVersion((v) => v + 1)
@@ -105,6 +135,7 @@ export default function Analysis({ id }: { id: string }) {
 
   useEffect(() => {
     entries.current = new Map()
+    tail.current = new Map()
     have.current = 0
     samples.current = []
     prevMeta.current = null
@@ -121,7 +152,7 @@ export default function Analysis({ id }: { id: string }) {
       const m = await poll()
       if (stop) return
       if (m && !isLive(m.status)) return // nothing more will change until Resume is pressed
-      timer = window.setTimeout(() => void loop(), document.hidden ? POLL_MS * 4 : POLL_MS)
+      timer = window.setTimeout(() => void loop(), document.hidden ? POLL_MS * 4 : prevMeta.current?.live ? LIVE_MS : POLL_MS)
     }
     void loop()
     const onVis = () => {
@@ -146,7 +177,7 @@ export default function Analysis({ id }: { id: string }) {
 
   const rows: Row[] = useMemo(() => {
     void version
-    return [...entries.current.values()].map((e) => (e.result ? rowFor(e.filing, e.result) : errorRow(e.filing, e.error ?? 'failed')))
+    return [...new Map([...entries.current, ...tail.current]).values()].map((e) => (e.result ? rowFor(e.filing, e.result) : errorRow(e.filing, e.error ?? 'failed')))
   }, [version])
 
   const act = async (what: 'stop' | 'resume') => {
@@ -260,7 +291,8 @@ export default function Analysis({ id }: { id: string }) {
         </div>
       </div>
 
-      {rows.length > 0 ? <ResultSheet rows={rows} fileBase={fileBase} about={about} /> : live && <p className="muted">The first rows appear here after the first {50} filings are done.</p>}
+      {live && <p className="explain good">Results appear here as each filing finishes. {rows.length.toLocaleString()} {rows.length === 1 ? 'row is' : 'rows are'} in the sheet so far, and you can filter, sort or download it now.</p>}
+      {rows.length > 0 ? <ResultSheet rows={rows} fileBase={fileBase} about={about} /> : live && <p className="muted">Waiting for the first filings to finish…</p>}
     </section>
   )
 }

@@ -61,6 +61,7 @@ class Batch:
         self.explicit = filings
         self.skip = set(skip)
         self.part = part
+        self.stored = part  # parts the website has accepted so far
         self.status = "queued"
         self.total = 0
         self.done = len(self.skip)
@@ -98,7 +99,15 @@ class Batch:
 
     def view(self) -> dict:
         return {"id": self.id, "status": self.status, "total": self.total, "done": self.done, "errors": self.errors,
-                "message": self.message, "updatedAt": int(self.updated_at * 1000), "startedAt": int(self.started_at * 1000), "parts": self.part}
+                "message": self.message, "updatedAt": int(self.updated_at * 1000), "startedAt": int(self.started_at * 1000), "parts": self.stored}
+
+    def tail(self) -> List[dict]:
+        """Finished filings the website has not stored yet, so a page can show them right away."""
+        with self.lock:
+            items = list(self.buf)
+        for _, p in list(self.pending_parts):
+            items += p
+        return items
 
     def save(self, **patch) -> bool:
         """Sends any waiting parts, then the progress note. Returns False if the website could not be reached."""
@@ -110,6 +119,7 @@ class Batch:
                     ok = False
                     break
                 self.pending_parts.pop(0)
+                self.stored = n + 1
             if ok:
                 ok = self._post({"patch": {**self._counts(), "status": self.status, "message": self.message, **patch}}) is not None
             self.last_save = time.time()
@@ -190,17 +200,18 @@ class Batch:
 
     def _finish(self) -> None:
         if self.reason:
-            self.status, self.message = "interrupted", self.reason
+            final, self.message = "interrupted", self.reason
         elif self.stop:
-            self.status = "stopped"
+            final = "stopped"
         else:
-            self.status = "done"
+            final = "done"
         self.updated_at = time.time()
         self._flush(force=True)
         for _ in range(10):  # the final note matters most: keep trying for a while
-            if self.save(finishedAt=int(time.time() * 1000)):
-                return
+            if self.save(status=final, finishedAt=int(time.time() * 1000)):
+                break
             time.sleep(6)
+        self.status = final  # shown to pages only now, when everything they need is stored
 
     # ---- finding the filings ----
     def _get(self, path: str, params: dict) -> dict:
