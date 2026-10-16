@@ -29,6 +29,7 @@ cfo ceo coo cto cio cao pfo pao
 united states america american new york
 authority agency federal energy mac valley resources biopharma housing finance conservator services systems industries international technologies
 pharma bio sciences capital lp associates enterprises ventures realty properties communications networks
+companies brands stores markets insurance airlines restaurants entertainment media foods labs laboratories health medical software semiconductor logistics solutions
 """.split()}
 
 _APPOINT = re.compile(r"(?i)\b(?:appoint\w*|nam(?:e|ed|es|ing)|elect\w*|promot\w*|hir\w*|select\w*|designat\w*|engag\w*|retain\w*|succe\w+|join\w*|become|becomes|will\s+serve|to\s+serve|as\s+the\s+(?:company.s\s+)?(?:new|next)?)")
@@ -56,6 +57,8 @@ def _candidates(sentence: str) -> List[Tuple[int, int, str, str]]:
         if any(w.lower().strip(".,") in _STOP for w in words):
             continue
         real = [w for w in words if not re.fullmatch(r"[A-Z]\.?", w)]
+        if re.match(r"\s*,?\s*(?:Inc|Corp|Corporation|LLC|Ltd|L\.P|LP|Co|PLC|N\.A)\b", sentence[m.end():m.end() + 14]):
+            continue  # "Albertsons Companies, Inc." is a company, not a person
         if len(words) >= 2 and len(real) >= 2:
             suffix = (m.group("suffix") or "").strip(" ,")
             display = " ".join(words) + (f", {suffix}" if suffix else "")

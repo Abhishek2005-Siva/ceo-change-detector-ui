@@ -124,15 +124,17 @@ async function pushKernel(a: AccountDef, runHours: number) {
   })
 }
 
-async function stopRunning(infos: AccountInfo[]) {
+/** Stops the server on the given accounts. Kaggle only reports a kernel's latest run, so an older session can still be
+ *  running when the status says COMPLETE; deleting the kernel ends every session it has, so do that whenever it exists. */
+async function stopRunning(infos: AccountInfo[], only?: string) {
   const stopped: string[] = []
+  const targets = infos.filter((i) => i.kernel !== 'NONE' && (!only || i.id === only))
   const url = (process.env.MODEL_URL || '').replace(/\/$/, '')
-  if (url && infos.some((i) => i.kernel === 'RUNNING' || i.kernel === 'QUEUED')) {
+  if (url && targets.length) {
     // Ask the server to stop itself first (newer versions understand this); deleting the kernel below ends it either way.
     await fetch(`${url}/shutdown`, { method: 'POST', headers: { Authorization: `Bearer ${process.env.MODEL_API_KEY || ''}`, 'ngrok-skip-browser-warning': '1', 'Content-Type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(6000) }).catch(() => undefined)
   }
-  for (const i of infos) {
-    if (i.kernel !== 'RUNNING' && i.kernel !== 'QUEUED') continue
+  for (const i of targets) {
     const def = ACCOUNTS.find((a) => a.id === i.id)!
     try {
       await kaggle(tokenOf(def), kernelsApi, 'DeleteKernel', { userName: i.id, kernelSlug: KERNEL_SLUG })
@@ -151,7 +153,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const given = String(req.headers['x-admin-key'] || '')
   if (!given || !same(given, key)) return res.status(401).json({ error: 'unauthorized', message: 'The owner key is missing or wrong.' })
 
-  const body = (req.body ?? {}) as { action?: string; account?: string; runHours?: number; dryRun?: boolean }
+  const body = (req.body ?? {}) as { action?: string; account?: string; runHours?: number; dryRun?: boolean; except?: string }
   try {
     const infos = await Promise.all(ACCOUNTS.map(inspect))
 
@@ -167,7 +169,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (body.action === 'stop') {
-      const stopped = await stopRunning(infos)
+      const stopped = await stopRunning(infos.filter((i) => i.id !== body.except), body.account && body.account !== 'all' ? body.account : undefined)
       return res.status(200).json({ ok: true, stopped })
     }
 
