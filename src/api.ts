@@ -74,11 +74,3 @@ export async function runSelfTest(): Promise<{ ok: boolean; results: SelfTestRes
   if (!r.ok) throw new ApiError(body.error ?? 'error', body.message ?? 'The self-test could not run.')
   return body
 }
-
-/** Tells the model server to stop itself (ends the Kaggle session and releases the GPU). */
-export async function shutdownServer(): Promise<{ ok: boolean; alreadyOff?: boolean }> {
-  const r = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shutdown: true }) })
-  const body = await r.json().catch(() => ({}))
-  if (!r.ok) throw new ApiError(body.error ?? 'error', body.message ?? 'Could not stop the server.')
-  return body
-}

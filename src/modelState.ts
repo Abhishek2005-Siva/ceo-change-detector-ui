@@ -59,3 +59,25 @@ export const recordCold = (seconds: number) => {
     localStorage.setItem(COLD_KEY, String(Math.min(180, Math.max(5, blended))))
   } catch { /* storage unavailable */ }
 }
+
+// Starting through Kaggle takes much longer (about 12 minutes) than waking a sleeping host, so track it separately.
+const BOOT_KEY = 'modelBootSeconds'
+const DEFAULT_BOOT = 720
+let startingEstimate: number | null = null
+export const setStartingEstimate = (s: number | null) => { startingEstimate = s }
+export const getStartingEstimate = () => startingEstimate
+
+export const bootEstimate = (): number => {
+  try {
+    const n = Number(localStorage.getItem(BOOT_KEY))
+    return n >= 120 && n <= 3600 ? n : DEFAULT_BOOT
+  } catch {
+    return DEFAULT_BOOT
+  }
+}
+
+export const recordBoot = (seconds: number) => {
+  try {
+    localStorage.setItem(BOOT_KEY, String(Math.round(bootEstimate() * 0.4 + seconds * 0.6)))
+  } catch { /* storage unavailable */ }
+}

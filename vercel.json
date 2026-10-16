@@ -1,0 +1,5 @@
+{
+  "functions": {
+    "api/host.ts": { "includeFiles": "backend/**", "maxDuration": 60 }
+  }
+}

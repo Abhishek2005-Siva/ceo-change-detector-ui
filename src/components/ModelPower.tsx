@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, modelHealth } from '../api'
-import { clearStarting, coldEstimate, getStartingAt, markOff, markReady, markStarting, readyUntil, recordCold } from '../modelState'
+import { clearStarting, coldEstimate, bootEstimate, getStartingAt, getStartingEstimate, markOff, markReady, markStarting, readyUntil, recordBoot, recordCold, setStartingEstimate } from '../modelState'
 import { fmtSecs } from '../hooks'
-import { shutdownServer } from '../api'
+import { getAdminKey, hostCall, setAdminKey, type StartResult } from '../host'
 import ModelStatusPanel, { DEMO, DEMO_MODELS, summarize } from './ModelStatusPanel'
+import StartPanel from './StartPanel'
 
 type State = 'off' | 'starting' | 'on' | 'error' | 'missing'
 
@@ -14,6 +15,8 @@ export default function ModelPower() {
   const stop = useRef(false)
   const [panel, setPanel] = useState(DEMO)
   const [stopping, setStopping] = useState(false)
+  const [picker, setPicker] = useState(false)
+  const [onAccount, setOnAccount] = useState('')
   const [sum, setSum] = useState<ReturnType<typeof summarize> | null>(DEMO ? summarize(DEMO_MODELS) : null)
 
   // Keep the badge honest: it turns "off" when the server has likely gone back to sleep.
@@ -53,13 +56,19 @@ export default function ModelPower() {
   }, [state])
 
   const turnOff = async () => {
-    if (!window.confirm('Turn the model server off?\n\nThis stops the Kaggle GPU session. Starting it again takes about 10-15 minutes.')) return
+    if (!window.confirm('Turn the model server off?\n\nThis stops the Kaggle GPU session and frees the GPU hours. Starting it again takes about 12 minutes.')) return
+    if (!getAdminKey()) {
+      const k = window.prompt('Owner key (stopping the server is owner-only):')
+      if (!k) return
+      setAdminKey(k)
+    }
     setStopping(true)
     try {
-      await shutdownServer()
+      await hostCall('stop')
       markOff()
       setPanel(false)
       setMsg('')
+      setOnAccount('')
       setState('off')
     } catch (e) {
       window.alert(e instanceof Error ? e.message : 'Could not stop the server.')
@@ -68,14 +77,17 @@ export default function ModelPower() {
     }
   }
 
-  const turnOn = useCallback(async () => {
+  const turnOn = useCallback(async (bootSeconds = 0) => {
     stop.current = false
+    setPicker(false)
+    setStartingEstimate(bootSeconds || null)
     markStarting()
     const t0 = getStartingAt() ?? performance.now()
     setState('starting')
     setSecs(0)
     setMsg('')
-    for (let i = 0; i < 60 && !stop.current; i++) {
+    const maxTries = bootSeconds ? Math.ceil((bootSeconds * 2.5) / 3) : 60
+    for (let i = 0; i < maxTries && !stop.current; i++) {
       try {
         const h = await modelHealth()
         if (h.hostError) {
@@ -86,7 +98,9 @@ export default function ModelPower() {
         }
         if (h.ok) {
           if (h.models) setSum(summarize(h.models))
-          recordCold((performance.now() - t0) / 1000)
+          if (bootSeconds) recordBoot((performance.now() - t0) / 1000)
+          else recordCold((performance.now() - t0) / 1000)
+          setStartingEstimate(null)
           markReady()
           setState('on')
           return
@@ -103,14 +117,19 @@ export default function ModelPower() {
           return
         }
       }
-      await new Promise((r) => setTimeout(r, 2000))
+      await new Promise((r) => setTimeout(r, bootSeconds ? 3000 : 2000))
     }
     if (!stop.current) {
       clearStarting()
-      setMsg('The model did not start in time.')
+      setMsg(bootSeconds ? 'The Kaggle server did not come up in time. Check the account on Kaggle, or try another account.' : 'The model did not start in time.')
       setState('error')
     }
   }, [])
+
+  const started = (r: StartResult) => {
+    setOnAccount(r.account)
+    void turnOn(bootEstimate())
+  }
 
   if (state === 'on') {
     const bad = !!sum && sum.problems > 0
@@ -132,8 +151,8 @@ export default function ModelPower() {
   if (state === 'starting') {
     return (
       <div className="power starting" role="status" aria-live="polite">
-        <span className="power-dot" /> Starting the model… {secs}s
-        <small>{secs < coldEstimate() ? `about ${fmtSecs(coldEstimate() - secs)} left` : 'almost there…'}</small>
+        <span className="power-dot" /> Starting{onAccount ? ` on ${onAccount}` : ' the model'}… {fmtSecs(secs)}
+        <small>{(() => { const est = getStartingEstimate() ?? coldEstimate(); return secs < est ? `about ${fmtSecs(est - secs)} left` : 'almost there…' })()}</small>
       </div>
     )
   }
@@ -142,14 +161,15 @@ export default function ModelPower() {
   }
   return (
     <div className="power-wrap">
-      <button type="button" className={`power-btn ${state === 'error' ? 'error' : ''}`} onClick={() => void turnOn()} title={msg || 'Wake the AI model server so filings are analyzed straight away'}>
+      <button type="button" className={`power-btn ${state === 'error' ? 'error' : ''}`} onClick={() => setPicker((v) => !v)} aria-expanded={picker} aria-haspopup="dialog" title={msg || 'Choose a Kaggle account and start the model server'}>
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
           <path d="M12 3v9" />
           <path d="M6.4 6.6a8 8 0 1 0 11.2 0" />
         </svg>
         {state === 'error' ? 'Retry: turn on model' : 'Turn on AI model'}
       </button>
-      {state === 'error' && msg && (
+      {picker && <StartPanel onClose={() => setPicker(false)} onStarted={(r) => { setMsg(''); started(r) }} onAlreadyRunning={() => void turnOn(0)} />}
+      {state === 'error' && msg && !picker && (
         <div className="mstatus" role="alert">
           <p className="explain bad"><b>The model server could not start.</b> {msg}</p>
         </div>

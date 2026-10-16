@@ -452,3 +452,19 @@ td.empty { text-align: center; }
 .th-btn { all: unset; cursor: pointer; font-weight: 650; }
 .th-btn:hover { text-decoration: underline; }
 .sheet .linklike { text-align: left; }
+
+/* start panel (account picker) */
+.startpanel { width: min(460px, calc(100vw - 32px)); }
+.acct-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.acct { display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; background: var(--surface-2); }
+.acct.on { border-color: var(--primary); background: var(--primary-soft); }
+.acct input { margin-top: 3px; accent-color: var(--primary); }
+.acct-main { display: grid; gap: 3px; min-width: 0; }
+.acct-main small { color: var(--muted); font-size: .78rem; }
+.acct-bar { height: 6px; border-radius: 99px; background: var(--surface); overflow: hidden; }
+.acct-bar i { display: block; height: 100%; background: var(--amber); }
+.hidden-note { margin: 10px 0 0; }
+.start-foot { display: grid; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); justify-items: start; }
+.hours { display: flex; gap: 8px; align-items: center; font-size: .9rem; }
+.hours select, .keyin { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; }
+.keyin { width: 100%; margin: 8px 0; }
