@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, modelHealth } from '../api'
-import { clearStarting, coldEstimate, getStartingAt, markReady, markStarting, readyUntil, recordCold } from '../modelState'
+import { clearStarting, coldEstimate, getStartingAt, markOff, markReady, markStarting, readyUntil, recordCold } from '../modelState'
 import { fmtSecs } from '../hooks'
+import { shutdownServer } from '../api'
 import ModelStatusPanel, { DEMO, DEMO_MODELS, summarize } from './ModelStatusPanel'
 
 type State = 'off' | 'starting' | 'on' | 'error' | 'missing'
@@ -12,6 +13,7 @@ export default function ModelPower() {
   const [msg, setMsg] = useState('')
   const stop = useRef(false)
   const [panel, setPanel] = useState(DEMO)
+  const [stopping, setStopping] = useState(false)
   const [sum, setSum] = useState<ReturnType<typeof summarize> | null>(DEMO ? summarize(DEMO_MODELS) : null)
 
   // Keep the badge honest: it turns "off" when the server has likely gone back to sleep.
@@ -49,6 +51,22 @@ export default function ModelPower() {
     modelHealth().then((h) => h.models && setSum(summarize(h.models))).catch(() => undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state])
+
+  const turnOff = async () => {
+    if (!window.confirm('Turn the model server off?\n\nThis stops the Kaggle GPU session. Starting it again takes about 10-15 minutes.')) return
+    setStopping(true)
+    try {
+      await shutdownServer()
+      markOff()
+      setPanel(false)
+      setMsg('')
+      setState('off')
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'Could not stop the server.')
+    } finally {
+      setStopping(false)
+    }
+  }
 
   const turnOn = useCallback(async () => {
     stop.current = false
@@ -105,6 +123,9 @@ export default function ModelPower() {
           <small>{panel ? 'hide' : 'details'} ▾</small>
         </button>
         {panel && <ModelStatusPanel onClose={() => setPanel(false)} onSummary={setSum} />}
+        <button type="button" className="power-off" onClick={() => void turnOff()} disabled={stopping || DEMO} title="Stop the Kaggle GPU session">
+          {stopping ? 'Stopping…' : 'Turn off'}
+        </button>
       </div>
     )
   }

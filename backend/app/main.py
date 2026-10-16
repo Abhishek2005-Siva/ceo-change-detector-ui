@@ -28,16 +28,11 @@ CEO_HINT = re.compile(r"chief\s+executive|\bCEO\b|principal\s+executive|presiden
 def _auth(authorization: str = Header(default="")) -> None:
     if API_KEY and authorization != f"Bearer {API_KEY}":
         raise HTTPException(401, "Unauthorized")
+    _activity["t"] = time.time()
 
 
 app = FastAPI(title="Leadership Change Detector model service", dependencies=[Depends(_auth)])
-_activity = {"t": time.time()}  # last request time; the Kaggle host uses it to shut down when idle
-
-
-@app.middleware("http")
-async def _touch(request, call_next):
-    _activity["t"] = time.time()
-    return await call_next(request)
+_activity = {"t": time.time()}  # last authenticated request; the Kaggle host shuts down when this gets old
 _pool = ThreadPoolExecutor(max_workers=1)
 _jobs: Dict[str, dict] = {}
 _cache: Dict[str, dict] = {}
@@ -179,6 +174,13 @@ def _models_status() -> list:
             "adapters": len(f.models), "loadSeconds": f.load_seconds, "readers": [],
         })
     return out
+
+
+@app.post("/shutdown")
+def shutdown() -> dict:
+    """Asks the host to stop. The Kaggle kernel watches this flag, exits, and so releases the GPU."""
+    _activity["shutdown"] = True
+    return {"ok": True, "message": "Shutting down. The server will stop within a few seconds."}
 
 
 @app.get("/health")

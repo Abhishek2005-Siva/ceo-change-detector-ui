@@ -2,7 +2,7 @@
 
 Built by build.sh (which fills the __PLACEHOLDERS__). Private kernel: it holds the API key and ngrok token.
 Adapters come from the private Kaggle dataset `filinglens-adapters`; base models download from the public hub.
-It stops by itself after RUN_HOURS, or earlier after IDLE_MINUTES without requests, so the session ends cleanly and saves GPU quota.
+It stops by itself after RUN_HOURS, or earlier after IDLE_MINUTES (default 7) without requests, so the session ends cleanly and saves GPU quota.
 """
 import base64
 import glob
@@ -46,7 +46,29 @@ print(f"CUDA: {torch.cuda.is_available()} x{torch.cuda.device_count()}", flush=T
 from app.main import app, start_prewarm  # noqa: E402  (importing starts loading the CEO ensemble in the background)
 
 conf.get_default().auth_token = NGROK_TOKEN
-tunnel = ngrok.connect(7860, bind_tls=True, domain=NGROK_DOMAIN)
+
+# If an older instance still holds the static domain, ask it to stop (servers from this version on understand /shutdown),
+# then keep retrying for a while in case it is slow to release the address.
+try:
+    import urllib.request
+
+    req = urllib.request.Request(f"https://{NGROK_DOMAIN}/shutdown", data=b"{}", method="POST",
+                                 headers={"Authorization": f"Bearer {os.environ['API_KEY']}", "Content-Type": "application/json", "ngrok-skip-browser-warning": "1"})
+    urllib.request.urlopen(req, timeout=10).read()
+    print("asked the previous server to shut down", flush=True)
+    time.sleep(8)
+except Exception as exc:  # no previous server, or an older one without /shutdown
+    print(f"no previous server stopped ({type(exc).__name__})", flush=True)
+
+tunnel, t_wait = None, time.time()
+while tunnel is None:
+    try:
+        tunnel = ngrok.connect(7860, bind_tls=True, domain=NGROK_DOMAIN)
+    except Exception as exc:
+        if time.time() - t_wait > 20 * 60:
+            raise SystemExit(f"the ngrok address stayed busy for 20 minutes: {exc}")
+        print(f"ngrok address busy (another server may still be running); retrying in 30 s: {str(exc)[:120]}", flush=True)
+        time.sleep(30)
 print("PUBLIC_URL", tunnel.public_url, flush=True)
 
 start_prewarm()
@@ -57,12 +79,18 @@ import app.main as _main  # noqa: E402
 
 t0 = time.time()
 reason = "time limit reached"
+last_log = 0.0
 while time.time() - t0 < RUN_HOURS * 3600:
-    time.sleep(60)
+    time.sleep(5)
+    if _main._activity.get("shutdown"):
+        reason = "stopped from the website"
+        time.sleep(3)  # let the HTTP reply reach the browser
+        break
     idle = (time.time() - _main._activity["t"]) / 60
-    if idle > IDLE_MINUTES and time.time() - t0 > 600:
+    if idle > IDLE_MINUTES and time.time() - t0 > 300:
         reason = f"idle for {int(idle)} min"
         break
-    if int(time.time() - t0) % 1800 < 60:
+    if time.time() - last_log > 1800:
+        last_log = time.time()
         print(f"alive {int((time.time() - t0) / 60)} min, idle {int(idle)} min", flush=True)
 print(f"DONE_SERVER ({reason}; start the kernel again to continue)", flush=True)

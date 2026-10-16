@@ -11,6 +11,14 @@ export const markStarting = () => {
   window.dispatchEvent(new Event('model-starting'))
 }
 
+export const markOff = () => {
+  startingAt = null
+  try {
+    localStorage.setItem(KEY, '0')
+  } catch { /* storage unavailable */ }
+  window.dispatchEvent(new Event('model-ready'))
+}
+
 export const clearStarting = () => {
   startingAt = null
   window.dispatchEvent(new Event('model-ready'))

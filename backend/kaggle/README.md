@@ -16,7 +16,7 @@ cd backend/kaggle
 API_KEY_FILE=/path/to/service-api-key ./build.sh     # fills secrets into ./out (git-ignored)
 ./start.sh                                           # pushes the kernel and deletes ./out
 ```
-Optional: `RUN_HOURS=3 IDLE_MINUTES=30 ./build.sh`. The server stops after `RUN_HOURS` or after `IDLE_MINUTES` without any request.
+Optional: `RUN_HOURS=3 IDLE_MINUTES=10 ./build.sh`. The server stops after `RUN_HOURS` or after `IDLE_MINUTES` without any request (default: 7 minutes; the check runs once a minute, so expect 7-8).
 Boot takes about 10-15 minutes the first time (pip installs, then loading all models onto the GPUs).
 
 ## Notes

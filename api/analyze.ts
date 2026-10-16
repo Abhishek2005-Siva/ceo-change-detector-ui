@@ -42,6 +42,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(503).json({ error: 'not_configured', message: 'The model backend is not connected yet.' })
   }
   try {
+    if (req.method === 'POST' && (req.body ?? {}).shutdown) {
+      const r = await call('/shutdown', { method: 'POST', body: '{}', signal: AbortSignal.timeout(15000) })
+      const { body, hostError } = await readJson(r)
+      if (hostError) return res.status(200).json({ ok: true, alreadyOff: true })
+      return res.status(r.ok ? 200 : 502).json(body.ok ? body : { ok: false, error: 'shutdown_failed', message: 'This server version cannot be stopped remotely. Stop the session on Kaggle instead.' })
+    }
     if (req.method === 'POST' && (req.body ?? {}).selftest) {
       // Runs every model once on the server; loads any that are not loaded yet, so it can take a while.
       const r = await call('/selftest', { method: 'POST', body: '{}', signal: AbortSignal.timeout(120000) })
