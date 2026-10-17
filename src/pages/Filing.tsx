@@ -7,7 +7,7 @@ import Highlight from '../components/Highlight'
 import { clearStarting, coldEstimate, markReady, markStarting, recordCold } from '../modelState'
 import { memory } from '../searchState'
 import type { AnalysisResult, Extraction, JobStatus } from '../types'
-import { fmtDate, pct } from '../utils'
+import { fmtDate, pct, whenText } from '../utils'
 
 function Panel({ kind, ex }: { kind: 'appointed' | 'resigned'; ex: Extraction }) {
   const title = kind === 'appointed' ? 'New CEO named' : 'CEO leaving'
@@ -24,6 +24,8 @@ function Panel({ kind, ex }: { kind: 'appointed' | 'resigned'; ex: Extraction })
         <>
           <dl className="facts">
             <div><dt>Person</dt><dd>{ex.name || 'Not named in the sentence'}</dd></div>
+            {whenText(ex) && <div><dt>Effective</dt><dd>{whenText(ex)}</dd></div>}
+            {ex.decided && <div><dt>{kind === 'resigned' ? 'Announced / notice' : 'Decided'}</dt><dd>{fmtDate(ex.decided)}</dd></div>}
             <div><dt>Confidence</dt><dd>{ex.confidence != null ? pct(ex.confidence, 2) : '—'}</dd></div>
           </dl>
           <h4>Sentence the AI relied on</h4>

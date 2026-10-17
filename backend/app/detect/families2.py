@@ -18,6 +18,7 @@ from . import context as ctxmod
 from .deal_text import deal_sentences, extract_amounts
 from .families import SECTION_CAP, DistressFamily, Family, _load
 from .items import find_item_section, list_headings, normalize_filing_text
+from ..dates import around, extract as extract_dates
 from ..people import _APPOINT, _LEAVE, pick_name, pick_name_from_sentences
 from .labelers201 import mark_self, self_aliases
 from .deal_text import strip_caption
@@ -72,7 +73,8 @@ class CFO(DistressFamily):
         res = super().run(plain, tables, filing_date, **ctx)
         if not res.get("found"):
             return res
-        cfo_sents = [x for x in ctxmod._sentences(section, "5.02") if re.search(ctxmod.CFO_TITLE_PATTERN, x, re.I)]
+        all_sents = ctxmod._sentences(section, "5.02")
+        cfo_sents = [x for x in all_sents if re.search(ctxmod.CFO_TITLE_PATTERN, x, re.I)]
         fields = res.get("fields") or {}
         for ev in res["events"]:
             kind = "appointed" if ev["label"] == "CFO_APPOINTED" else "resigned"
@@ -83,8 +85,10 @@ class CFO(DistressFamily):
                 ev["evidence"] = evidence
             name = fields.get(f"{kind}_name") or (pick_name(evidence, kind, section) if evidence else None) or pick_name_from_sentences(cfo_sents, kind, section)
             interim = bool(fields.get(f"{kind}_interim"))
+            idx = all_sents.index(evidence) if evidence in all_sents else None
+            when = extract_dates(evidence, name, around(all_sents, idx))
             ev.update({
-                "kind": kind, "name": name, "interim": interim, "effective": fields.get(f"{kind}_effective"),
+                "kind": kind, "name": name, "interim": interim, "effective": when["effective"], "effectiveNote": when["effectiveNote"], "decided": when["decided"],
                 "title": ("New interim CFO named" if interim else "New CFO named") if kind == "appointed" else ("Interim CFO leaving" if interim else "CFO leaving"),
             })
         res["fields"] = {}  # names, dates and the interim flag now live on each event

@@ -1,6 +1,6 @@
 import Highlight from './Highlight'
 import type { DetectorEvent, DetectorResult } from '../types'
-import { pct } from '../utils'
+import { fmtDate, pct, whenText } from '../utils'
 
 export const ICON: Record<string, string> = {
   bankruptcy: '⚖', delisting: '⇩', auditor: '✎', votes: '☑', cfo: '👔', acquisition: '🤝', agreements: '📄', equity: '📈', guidance: '📊', restructuring: '🏭',
@@ -24,7 +24,8 @@ function Event({ e }: { e: DetectorEvent }) {
       {e.kind && (
         <dl className="facts">
           <div><dt>Person</dt><dd>{e.name || 'Not named in the sentence'}{e.interim ? ' (interim)' : ''}</dd></div>
-          {e.effective && <div><dt>Effective</dt><dd>{e.effective}</dd></div>}
+          {whenText(e) && <div><dt>Effective</dt><dd>{whenText(e)}</dd></div>}
+          {e.decided && <div><dt>{e.kind === 'resigned' ? 'Announced / notice' : 'Decided'}</dt><dd>{fmtDate(e.decided)}</dd></div>}
         </dl>
       )}
       {e.detail && <p className="devent-detail">{e.detail}</p>}

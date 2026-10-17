@@ -1,4 +1,5 @@
 import type { FilingRow, SlimResult } from '../types'
+import { whenText } from '../utils'
 
 export type Row = Record<string, string | number>
 
@@ -22,8 +23,8 @@ const det = (r: SlimResult, key: string): Det | undefined => (r.detectors ?? [])
 const summarize = (d?: Det): string =>
   d && d.found ? d.events.map((e) => e.title + (e.detail ? ` (${e.detail})` : '') + (e.confidence != null ? ` [${pct(e.confidence)}]` : '')).join('; ') : ''
 
-const person = (name: string | null | undefined, conf?: number | null, interim?: boolean) =>
-  `${name || 'Yes (name not stated)'}${interim ? ' (interim)' : ''}${conf != null ? ` [${pct(conf)}]` : ''}`
+const person = (name: string | null | undefined, conf?: number | null, interim?: boolean, when?: { effective?: string | null; effectiveNote?: string | null }) =>
+  `${name || 'Yes (name not stated)'}${interim ? ' (interim)' : ''}${when && whenText(when) ? ` · effective ${when.effective ?? whenText(when).toLowerCase()}` : ''}${conf != null ? ` [${pct(conf)}]` : ''}`
 
 /** One spreadsheet row for a filing that was analyzed. */
 export function rowFor(f: FilingRow, r: SlimResult): Row {
@@ -48,10 +49,10 @@ export function rowFor(f: FilingRow, r: SlimResult): Row {
     'Items in filing': (r.filing.items?.length ? r.filing.items : f.items).join(', '),
     'Events found': titles.length,
     'Event summary': titles.join('; '),
-    'CEO appointed': r.appointed.found ? person(r.appointed.name, r.appointed.confidence) : '',
-    'CEO leaving': r.resigned.found ? person(r.resigned.name, r.resigned.confidence) : '',
-    'CFO appointed': cfoApp ? person(cfoApp.name, cfoApp.confidence, cfoApp.interim) : '',
-    'CFO leaving': cfoRes ? person(cfoRes.name, cfoRes.confidence, cfoRes.interim) : '',
+    'CEO appointed': r.appointed.found ? person(r.appointed.name, r.appointed.confidence, false, r.appointed) : '',
+    'CEO leaving': r.resigned.found ? person(r.resigned.name, r.resigned.confidence, false, r.resigned) : '',
+    'CFO appointed': cfoApp ? person(cfoApp.name, cfoApp.confidence, cfoApp.interim, cfoApp) : '',
+    'CFO leaving': cfoRes ? person(cfoRes.name, cfoRes.confidence, cfoRes.interim, cfoRes) : '',
     'Bankruptcy': summarize(det(r, 'bankruptcy')),
     'Delisting / listing notice': summarize(det(r, 'delisting')),
     'Auditor change': summarize(det(r, 'auditor')),

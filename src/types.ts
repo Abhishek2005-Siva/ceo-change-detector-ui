@@ -80,6 +80,9 @@ export interface Extraction {
   sentence?: string
   sentenceIndex?: number | null
   confidence?: number | null
+  effective?: string | null // ISO date the change takes effect, when the filing gives one
+  effectiveNote?: string | null // 'immediately' or 'upon ...' when there is no calendar date
+  decided?: string | null // the date the board acted or notice was given, when stated
   votesFor?: number
   readers?: ReaderVote[]
 }
@@ -101,6 +104,8 @@ export interface DetectorEvent {
   name?: string | null
   interim?: boolean
   effective?: string | null
+  effectiveNote?: string | null
+  decided?: string | null
 }
 
 export interface DetectorResult {
@@ -187,12 +192,15 @@ export interface SlimEvent {
   kind?: 'appointed' | 'resigned'
   name?: string | null
   interim?: boolean
+  effective?: string | null
+  effectiveNote?: string | null
+  decided?: string | null
 }
 
 export interface SlimResult {
   filing: { items: string[] }
   item502Found: boolean
-  appointed: Pick<Extraction, 'found' | 'name' | 'confidence' | 'sentence'>
-  resigned: Pick<Extraction, 'found' | 'name' | 'confidence' | 'sentence'>
+  appointed: Pick<Extraction, 'found' | 'name' | 'confidence' | 'sentence' | 'effective' | 'effectiveNote' | 'decided'>
+  resigned: Pick<Extraction, 'found' | 'name' | 'confidence' | 'sentence' | 'effective' | 'effectiveNote' | 'decided'>
   detectors?: { key: string; applicable: boolean; found: boolean; events: SlimEvent[] }[]
 }

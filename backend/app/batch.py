@@ -27,7 +27,7 @@ def slim(result: dict) -> dict:
     f = result.get("filing", {})
 
     def ext(e: dict) -> dict:
-        out = {k: e[k] for k in ("found", "name", "confidence") if k in e}
+        out = {k: e[k] for k in ("found", "name", "confidence", "effective", "effectiveNote", "decided") if e.get(k) is not None or k in ("found",)}
         if e.get("sentence"):
             out["sentence"] = str(e["sentence"])[:600]
         return out
@@ -38,7 +38,7 @@ def slim(result: dict) -> dict:
             continue
         events = []
         for ev in d.get("events", []):
-            item = {k: ev[k] for k in ("title", "detail", "confidence", "kind", "name", "interim") if ev.get(k) is not None}
+            item = {k: ev[k] for k in ("title", "detail", "confidence", "kind", "name", "interim", "effective", "effectiveNote", "decided") if ev.get(k) is not None}
             if ev.get("evidence"):
                 item["evidence"] = str(ev["evidence"])[:600]
             events.append(item)

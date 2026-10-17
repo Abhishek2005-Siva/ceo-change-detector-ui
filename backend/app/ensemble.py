@@ -20,6 +20,7 @@ from peft import PeftModel
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from .devices import place
+from .dates import around, extract as extract_dates
 from .people import pick_name, pick_name_from_sentences
 from .item502 import regex_extract_ceo_event
 
@@ -160,15 +161,19 @@ class Ensemble:
                 context = " ".join(sentences)
                 name = pick_name(sentence, key, context) or ""
                 if not name:
-                    flagged = [sentences[i] for i in range(len(sentences)) if any(sent_rows[i]["readers"][r]["counts"] for r in range(len(names)))]
-                    name = pick_name_from_sentences(flagged, key, context) or ""
+                    counted = [sentences[i] for i in range(len(sentences)) if any(sent_rows[i]["readers"][r]["counts"] for r in range(len(names)))]
+                    name = pick_name_from_sentences(counted, key, context) or ""
             if best and not name:
                 m = _HONORIFIC_SURNAME.search(sentence)
                 if m:
                     name = m.group(0)  # e.g. "Mr. Janik": the filing only gives the surname here
+            when = extract_dates(sentence, name or None, around(sentences, best[0] if best else None)) if best else {"effective": None, "effectiveNote": None, "decided": None}
             result[key] = {
                 "found": flagged,
                 "name": name,
+                "effective": when["effective"],  # ISO date the change takes effect, when the filing says
+                "effectiveNote": when["effectiveNote"],  # "immediately" or "upon ..." when there is no calendar date
+                "decided": when["decided"],  # the date the board acted or the person gave notice, when stated
                 "sentence": sentence,
                 "sentenceIndex": best[0] if best else None,
                 "confidence": round(best[1], 4) if best else None,
